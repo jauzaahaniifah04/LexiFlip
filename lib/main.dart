@@ -359,43 +359,109 @@ class LexiFlipApp extends StatelessWidget {
 // START PAGE
 // ============================================================
 
-class StartPage extends StatelessWidget {
+
+class StartPage extends StatefulWidget {
   const StartPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<String>(
-      future: DatabaseHelper.instance.ambilNama(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState != ConnectionState.done) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
+  State<StartPage> createState() => _StartPageState();
+}
 
-        if (snapshot.hasError) {
-          return Scaffold(
-            body: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  'Database gagal dibuka.\n\n${snapshot.error}',
-                  textAlign: TextAlign.center,
-                ),
+class _StartPageState extends State<StartPage> {
+  String namaTersimpan = '';
+  bool loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    cekPengguna();
+  }
+
+  Future<void> cekPengguna() async {
+    try {
+      final nama = await DatabaseHelper.instance.ambilNama();
+
+      if (!mounted) return;
+
+      setState(() {
+        namaTersimpan = nama;
+        loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        loading = false;
+      });
+    }
+  }
+
+  void masuk() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DashboardPage(nama: namaTersimpan),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    // Pengguna lama
+    if (namaTersimpan.isNotEmpty) {
+      return Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.style_rounded,
+                    size: 90,
+                    color: Colors.indigo,
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'LexiFlip',
+                    style: TextStyle(
+                      fontSize: 38,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Selamat datang kembali, $namaTersimpan!',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 18),
+                  ),
+                  const SizedBox(height: 28),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: FilledButton.icon(
+                      onPressed: masuk,
+                      icon: const Icon(Icons.login),
+                      label: const Text('MASUK'),
+                    ),
+                  ),
+                ],
               ),
             ),
-          );
-        }
+          ),
+        ),
+      );
+    }
 
-        final nama = snapshot.data ?? '';
-
-        if (nama.isEmpty) {
-          return const WelcomePage();
-        }
-
-        return DashboardPage(nama: nama);
-      },
-    );
+    // Pengguna baru
+    return const WelcomePage();
   }
 }
 
