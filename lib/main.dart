@@ -355,7 +355,6 @@ class LexiFlipApp extends StatelessWidget {
   }
 }
 
-```dart
 // ============================================================
 // START PAGE
 // ============================================================
@@ -399,17 +398,13 @@ class _StartPageState extends State<StartPage> {
   void masuk() {
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(
-        builder: (_) => DashboardPage(nama: namaTersimpan),
-      ),
+      MaterialPageRoute(builder: (_) => DashboardPage(nama: namaTersimpan)),
     );
   }
 
   // EDIT NAMA PENGGUNA
   Future<void> editNama() async {
-    final controller = TextEditingController(
-      text: namaTersimpan,
-    );
+    final controller = TextEditingController(text: namaTersimpan);
 
     final namaBaru = await showDialog<String>(
       context: context,
@@ -439,9 +434,7 @@ class _StartPageState extends State<StartPage> {
 
                 if (nama.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Nama tidak boleh kosong.'),
-                    ),
+                    const SnackBar(content: Text('Nama tidak boleh kosong.')),
                   );
                   return;
                 }
@@ -469,29 +462,20 @@ class _StartPageState extends State<StartPage> {
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Nama pengguna berhasil diperbarui!'),
-        ),
+        const SnackBar(content: Text('Nama pengguna berhasil diperbarui!')),
       );
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Gagal mengubah nama: $e'),
-        ),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Gagal mengubah nama: $e')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     if (loading) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     // PENGGUNA LAMA
@@ -565,8 +549,6 @@ class _StartPageState extends State<StartPage> {
     return const WelcomePage();
   }
 }
-```
-
 // ============================================================
 // WELCOME
 // ============================================================
@@ -682,6 +664,36 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   int halaman = 0;
 
+  Future<void> keluar() async {
+    final konfirmasi = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Konfirmasi Keluar'),
+        content: const Text(
+          'Apakah kamu yakin ingin keluar dan kembali ke halaman masuk?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Keluar'),
+          ),
+        ],
+      ),
+    );
+
+    if (konfirmasi != true || !mounted) return;
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const StartPage()),
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final pages = [
@@ -717,6 +729,11 @@ class _DashboardPageState extends State<DashboardPage> {
               );
             },
             icon: const Icon(Icons.bar_chart),
+          ),
+          IconButton(
+            tooltip: 'Keluar',
+            onPressed: keluar,
+            icon: const Icon(Icons.logout),
           ),
         ],
       ),
