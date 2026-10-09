@@ -355,10 +355,10 @@ class LexiFlipApp extends StatelessWidget {
   }
 }
 
+```dart
 // ============================================================
 // START PAGE
 // ============================================================
-
 
 class StartPage extends StatefulWidget {
   const StartPage({super.key});
@@ -405,65 +405,167 @@ class _StartPageState extends State<StartPage> {
     );
   }
 
+  // EDIT NAMA PENGGUNA
+  Future<void> editNama() async {
+    final controller = TextEditingController(
+      text: namaTersimpan,
+    );
+
+    final namaBaru = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Edit Nama Pengguna'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(
+              labelText: 'Nama Pengguna',
+              prefixIcon: Icon(Icons.person),
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+              },
+              child: const Text('Batal'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final nama = controller.text.trim();
+
+                if (nama.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Nama tidak boleh kosong.'),
+                    ),
+                  );
+                  return;
+                }
+
+                Navigator.pop(dialogContext, nama);
+              },
+              child: const Text('Simpan'),
+            ),
+          ],
+        );
+      },
+    );
+
+    controller.dispose();
+
+    if (!mounted || namaBaru == null) return;
+
+    try {
+      await DatabaseHelper.instance.simpanNama(namaBaru);
+
+      if (!mounted) return;
+
+      setState(() {
+        namaTersimpan = namaBaru;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Nama pengguna berhasil diperbarui!'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal mengubah nama: $e'),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (loading) {
       return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
       );
     }
 
-    // Pengguna lama
+    // PENGGUNA LAMA
     if (namaTersimpan.isNotEmpty) {
       return Scaffold(
         body: SafeArea(
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(28),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.style_rounded,
-                    size: 90,
+          child: Stack(
+            children: [
+              // KONTEN HALAMAN MASUK
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(28),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.style_rounded,
+                        size: 90,
+                        color: Colors.indigo,
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'LexiFlip',
+                        style: TextStyle(
+                          fontSize: 38,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Selamat datang kembali, $namaTersimpan!',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 18),
+                      ),
+                      const SizedBox(height: 28),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: FilledButton.icon(
+                          onPressed: masuk,
+                          icon: const Icon(Icons.login),
+                          label: const Text('MASUK'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // IKON PENGATURAN DI POJOK KANAN ATAS
+              Positioned(
+                top: 4,
+                right: 8,
+                child: IconButton(
+                  tooltip: 'Pengaturan nama',
+                  onPressed: editNama,
+                  icon: const Icon(
+                    Icons.settings,
+                    size: 28,
                     color: Colors.indigo,
                   ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'LexiFlip',
-                    style: TextStyle(
-                      fontSize: 38,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Selamat datang kembali, $namaTersimpan!',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 18),
-                  ),
-                  const SizedBox(height: 28),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: FilledButton.icon(
-                      onPressed: masuk,
-                      icon: const Icon(Icons.login),
-                      label: const Text('MASUK'),
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
         ),
       );
     }
 
-    // Pengguna baru
+    // PENGGUNA BARU
     return const WelcomePage();
   }
 }
+```
 
 // ============================================================
 // WELCOME
