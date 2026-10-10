@@ -1920,7 +1920,7 @@ class _LatihanPageState extends State<LatihanPage> {
   String? errorMessage;
   String hasil = '';
 
-  final TextEditingController kodeController = TextEditingController();
+  final TextEditingController codeController = TextEditingController();
 
   @override
   void initState() {
