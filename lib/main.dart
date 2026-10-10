@@ -609,6 +609,126 @@ await db.execute('''
     return '${data.first['nama'] ?? ''}';
   }
 
+// Membuat salt acak untuk setiap akun.
+String _buatSalt() {
+  final random = Random.secure();
+
+  return List.generate(
+    16,
+    (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+  ).join();
+}
+
+// Membuat hash kata sandi.
+String _hashPassword(String password, String salt) {
+  return sha256.convert(utf8.encode('$salt:$password')).toString();
+}
+
+// DAFTAR AKUN BARU
+Future<int> daftarAkun({
+  required String nama,
+  required String username,
+  required String password,
+}) async {
+  final db = database;
+  final usernameBersih = username.trim().toLowerCase();
+
+  final akunLama = await db.query(
+    'pengguna',
+    columns: ['id'],
+    where: 'LOWER(username) = ?',
+    whereArgs: [usernameBersih],
+    limit: 1,
+  );
+
+  if (akunLama.isNotEmpty) {
+    throw Exception('Nama pengguna sudah digunakan.');
+  }
+
+  final salt = _buatSalt();
+
+  final id = await db.insert('pengguna', {
+    'nama': nama.trim(),
+    'username': usernameBersih,
+    'salt': salt,
+    'password_hash': _hashPassword(password, salt),
+  });
+
+  userId = id;
+
+  await db.insert(
+    'sesi_login',
+    {'id': 1, 'pengguna_id': id},
+    conflictAlgorithm: ConflictAlgorithm.replace,
+  );
+
+  return id;
+}
+
+// LOGIN AKUN YANG SUDAH TERDAFTAR
+Future<Map<String, Object?>?> loginAkun({
+  required String username,
+  required String password,
+}) async {
+  final db = database;
+
+  final hasil = await db.query(
+    'pengguna',
+    where: 'LOWER(username) = ?',
+    whereArgs: [username.trim().toLowerCase()],
+    limit: 1,
+  );
+
+  if (hasil.isEmpty) return null;
+
+  final akun = hasil.first;
+  final salt = akun['salt'] as String?;
+  final passwordHash = akun['password_hash'] as String?;
+
+  if (salt == null || passwordHash == null) return null;
+
+  if (_hashPassword(password, salt) != passwordHash) {
+    return null;
+  }
+
+  final id = akun['id'] as int;
+  userId = id;
+
+  await db.insert(
+    'sesi_login',
+    {'id': 1, 'pengguna_id': id},
+    conflictAlgorithm: ConflictAlgorithm.replace,
+  );
+
+  return akun;
+}
+
+// MEMERIKSA APAKAH ADA SESI LOGIN TERSIMPAN
+Future<Map<String, Object?>?> cekSesiLogin() async {
+  final hasil = await database.rawQuery('''
+    SELECT pengguna.id, pengguna.nama
+    FROM sesi_login
+    JOIN pengguna ON pengguna.id = sesi_login.pengguna_id
+    WHERE sesi_login.id = 1
+    LIMIT 1
+  ''');
+
+  if (hasil.isEmpty) return null;
+
+  userId = hasil.first['id'] as int;
+  return hasil.first;
+}
+
+// LOGOUT TANPA MENGHAPUS AKUN
+Future<void> logout() async {
+  await database.delete(
+    'sesi_login',
+    where: 'id = ?',
+    whereArgs: [1],
+  );
+
+  userId = 1;
+}
   Future<void> simpanFlashcardStatus({
     required int flashcardId,
     required String status,
