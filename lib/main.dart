@@ -1321,6 +1321,11 @@ class _DashboardPageState extends State<DashboardPage> {
 
     if (konfirmasi != true || !mounted) return;
 
+    // Hapus sesi, tetapi akun dan progres tidak dihapus.
+    await DatabaseHelper.instance.logout();
+
+    if (!mounted) return;
+
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (_) => const StartPage()),
