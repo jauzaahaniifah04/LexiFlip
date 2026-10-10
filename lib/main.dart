@@ -27,7 +27,7 @@ class DatabaseHelper {
 
   static final DatabaseHelper instance = DatabaseHelper._();
 
-  static  int userId = 1;
+  static int userId = 0;
   static const String databaseName = 'lexiflip.db';
 
   Database? _database;
@@ -37,54 +37,66 @@ class DatabaseHelper {
 
     final databasePath = p.join(await getDatabasesPath(), databaseName);
 
-_database = await openDatabase(
-  databasePath,
-  version: 2,
-  onCreate: (db, version) async {
-    await _createTables(db);
-    await _seedDatabase(db);
-  },
-  onUpgrade: (db, oldVersion, newVersion) async {
-    if (oldVersion < 2) {
+    _database = await openDatabase(
+      databasePath,
+      version: 3,
+      onCreate: (db, version) async {
+        await _createTables(db);
+        await _seedDatabase(db);
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 3) {
+          await _ensureAuthSchema(db);
+        }
+      },
+    );
+  }
+
+  Future<void> _ensureAuthSchema(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS pengguna (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nama TEXT NOT NULL,
+        username TEXT,
+        salt TEXT,
+        password_hash TEXT
+      )
+    ''');
+
+    final columns = await db.rawQuery('PRAGMA table_info(pengguna)');
+    final columnNames = columns
+        .map((column) => column['name'] as String)
+        .toSet();
+
+    if (!columnNames.contains('nama')) {
       await db.execute(
-        'ALTER TABLE pengguna ADD COLUMN username TEXT',
+        "ALTER TABLE pengguna ADD COLUMN nama TEXT NOT NULL DEFAULT ''",
       );
-
-      await db.execute(
-        'ALTER TABLE pengguna ADD COLUMN salt TEXT',
-      );
-
-      await db.execute(
-        'ALTER TABLE pengguna ADD COLUMN password_hash TEXT',
-      );
-
-      await db.execute('''
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_pengguna_username
-        ON pengguna(username)
-      ''');
-
-      await db.execute('''
-        CREATE TABLE IF NOT EXISTS sesi_login (
-          id INTEGER PRIMARY KEY CHECK (id = 1),
-          pengguna_id INTEGER NOT NULL
-        )
-      ''');
     }
-  },
-);
+    if (!columnNames.contains('username')) {
+      await db.execute('ALTER TABLE pengguna ADD COLUMN username TEXT');
+    }
+    if (!columnNames.contains('salt')) {
+      await db.execute('ALTER TABLE pengguna ADD COLUMN salt TEXT');
+    }
+    if (!columnNames.contains('password_hash')) {
+      await db.execute('ALTER TABLE pengguna ADD COLUMN password_hash TEXT');
+    }
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS sesi_login (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        pengguna_id INTEGER NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_pengguna_username
+      ON pengguna(username)
+    ''');
+  }
 
   Future<void> _createTables(Database db) async {
-    await db.execute('''
-  CREATE UNIQUE INDEX IF NOT EXISTS idx_pengguna_username
-  ON pengguna(username)
-''');
-
-await db.execute('''
-  CREATE TABLE IF NOT EXISTS sesi_login (
-    id INTEGER PRIMARY KEY CHECK (id = 1),
-    pengguna_id INTEGER NOT NULL
-  )
-''');
+    await _ensureAuthSchema(db);
 
     await db.execute('''
       CREATE TABLE bab (
@@ -358,10 +370,6 @@ await db.execute('''
       await db.insert('materi', item);
     }
 
-    for (final item in materi) {
-      await db.insert('materi', item);
-    }
-
     const flashcards = [
       // BAB 1: VARIABEL
       {
@@ -529,10 +537,6 @@ await db.execute('''
       await db.insert('flashcard', item);
     }
 
-    for (final item in flashcards) {
-      await db.insert('flashcard', item);
-    }
-
     const latihan = [
       {
         'bab_id': 1,
@@ -589,146 +593,123 @@ await db.execute('''
     return _database!;
   }
 
-  Future<void> simpanNama(String nama) async {
-    await database.insert('pengguna', {
-      'id': userId,
-      'nama': nama,
-    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  // Membuat salt acak untuk setiap akun.
+  String _buatSalt() {
+    final random = Random.secure();
+
+    return List.generate(
+      16,
+      (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ).join();
   }
 
-  Future<String> ambilNama() async {
-    final data = await database.query(
+  String _hashPassword(String password, String salt) {
+    return sha256.convert(utf8.encode('$salt:$password')).toString();
+  }
+
+  Future<int> daftarAkun({
+    required String nama,
+    required String username,
+    required String password,
+  }) async {
+    final namaBersih = nama.trim();
+    final usernameBersih = username.trim().toLowerCase();
+
+    if (namaBersih.isEmpty || usernameBersih.isEmpty || password.isEmpty) {
+      throw ArgumentError('Nama, nama pengguna, dan kata sandi wajib diisi.');
+    }
+
+    final db = database;
+    final salt = _buatSalt();
+
+    final id = await db.transaction<int>((txn) async {
+      final akunLama = await txn.query(
+        'pengguna',
+        columns: ['id'],
+        where: 'LOWER(username) = ?',
+        whereArgs: [usernameBersih],
+        limit: 1,
+      );
+
+      if (akunLama.isNotEmpty) {
+        throw Exception('Nama pengguna sudah digunakan.');
+      }
+
+      final penggunaId = await txn.insert('pengguna', {
+        'nama': namaBersih,
+        'username': usernameBersih,
+        'salt': salt,
+        'password_hash': _hashPassword(password, salt),
+      });
+
+      await txn.insert('sesi_login', {
+        'id': 1,
+        'pengguna_id': penggunaId,
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+
+      return penggunaId;
+    });
+
+    userId = id;
+    return id;
+  }
+
+  Future<Map<String, Object?>?> loginAkun({
+    required String username,
+    required String password,
+  }) async {
+    final db = database;
+
+    final hasil = await db.query(
       'pengguna',
-      where: 'id = ?',
-      whereArgs: [userId],
+      where: 'LOWER(username) = ?',
+      whereArgs: [username.trim().toLowerCase()],
       limit: 1,
     );
 
-    if (data.isEmpty) return '';
+    if (hasil.isEmpty) return null;
 
-    return '${data.first['nama'] ?? ''}';
+    final akun = hasil.first;
+    final salt = akun['salt'] as String?;
+    final passwordHash = akun['password_hash'] as String?;
+
+    if (salt == null ||
+        passwordHash == null ||
+        _hashPassword(password, salt) != passwordHash) {
+      return null;
+    }
+
+    final id = akun['id'] as int;
+    await db.insert('sesi_login', {
+      'id': 1,
+      'pengguna_id': id,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+
+    userId = id;
+    return akun;
   }
 
-// Membuat salt acak untuk setiap akun.
-String _buatSalt() {
-  final random = Random.secure();
+  Future<Map<String, Object?>?> cekSesiLogin() async {
+    final hasil = await database.rawQuery('''
+      SELECT pengguna.id, pengguna.nama
+      FROM sesi_login
+      JOIN pengguna ON pengguna.id = sesi_login.pengguna_id
+      WHERE sesi_login.id = 1
+      LIMIT 1
+    ''');
 
-  return List.generate(
-    16,
-    (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
-  ).join();
-}
+    if (hasil.isEmpty) return null;
 
-// Membuat hash kata sandi.
-String _hashPassword(String password, String salt) {
-  return sha256.convert(utf8.encode('$salt:$password')).toString();
-}
-
-// DAFTAR AKUN BARU
-Future<int> daftarAkun({
-  required String nama,
-  required String username,
-  required String password,
-}) async {
-  final db = database;
-  final usernameBersih = username.trim().toLowerCase();
-
-  final akunLama = await db.query(
-    'pengguna',
-    columns: ['id'],
-    where: 'LOWER(username) = ?',
-    whereArgs: [usernameBersih],
-    limit: 1,
-  );
-
-  if (akunLama.isNotEmpty) {
-    throw Exception('Nama pengguna sudah digunakan.');
+    userId = hasil.first['id'] as int;
+    return hasil.first;
   }
 
-  final salt = _buatSalt();
+  Future<void> logout() async {
+    await database.delete('sesi_login', where: 'id = ?', whereArgs: [1]);
 
-  final id = await db.insert('pengguna', {
-    'nama': nama.trim(),
-    'username': usernameBersih,
-    'salt': salt,
-    'password_hash': _hashPassword(password, salt),
-  });
-
-  userId = id;
-
-  await db.insert(
-    'sesi_login',
-    {'id': 1, 'pengguna_id': id},
-    conflictAlgorithm: ConflictAlgorithm.replace,
-  );
-
-  return id;
-}
-
-// LOGIN AKUN YANG SUDAH TERDAFTAR
-Future<Map<String, Object?>?> loginAkun({
-  required String username,
-  required String password,
-}) async {
-  final db = database;
-
-  final hasil = await db.query(
-    'pengguna',
-    where: 'LOWER(username) = ?',
-    whereArgs: [username.trim().toLowerCase()],
-    limit: 1,
-  );
-
-  if (hasil.isEmpty) return null;
-
-  final akun = hasil.first;
-  final salt = akun['salt'] as String?;
-  final passwordHash = akun['password_hash'] as String?;
-
-  if (salt == null || passwordHash == null) return null;
-
-  if (_hashPassword(password, salt) != passwordHash) {
-    return null;
+    userId = 0;
   }
 
-  final id = akun['id'] as int;
-  userId = id;
-
-  await db.insert(
-    'sesi_login',
-    {'id': 1, 'pengguna_id': id},
-    conflictAlgorithm: ConflictAlgorithm.replace,
-  );
-
-  return akun;
-}
-
-// MEMERIKSA APAKAH ADA SESI LOGIN TERSIMPAN
-Future<Map<String, Object?>?> cekSesiLogin() async {
-  final hasil = await database.rawQuery('''
-    SELECT pengguna.id, pengguna.nama
-    FROM sesi_login
-    JOIN pengguna ON pengguna.id = sesi_login.pengguna_id
-    WHERE sesi_login.id = 1
-    LIMIT 1
-  ''');
-
-  if (hasil.isEmpty) return null;
-
-  userId = hasil.first['id'] as int;
-  return hasil.first;
-}
-
-// LOGOUT TANPA MENGHAPUS AKUN
-Future<void> logout() async {
-  await database.delete(
-    'sesi_login',
-    where: 'id = ?',
-    whereArgs: [1],
-  );
-
-  userId = 1;
-}
   Future<void> simpanFlashcardStatus({
     required int flashcardId,
     required String status,
@@ -809,9 +790,7 @@ class StartPage extends StatelessWidget {
         final akun = snapshot.data;
 
         if (akun != null) {
-          return DashboardPage(
-            nama: akun['nama'] as String? ?? '',
-          );
+          return DashboardPage(nama: akun['nama'] as String? ?? '');
         }
 
         return const WelcomePage();
@@ -833,18 +812,11 @@ class WelcomePage extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
-                  Icons.style_rounded,
-                  size: 90,
-                  color: Colors.indigo,
-                ),
+                const Icon(Icons.style_rounded, size: 90, color: Colors.indigo),
                 const SizedBox(height: 16),
                 const Text(
                   'LexiFlip',
-                  style: TextStyle(
-                    fontSize: 38,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 38, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 10),
                 const Text(
@@ -878,9 +850,7 @@ class WelcomePage extends StatelessWidget {
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(
-                          builder: (_) => const LoginPage(),
-                        ),
+                        MaterialPageRoute(builder: (_) => const LoginPage()),
                       );
                     },
                     icon: const Icon(Icons.login),
@@ -932,26 +902,22 @@ class _DaftarAkunPageState extends State<DaftarAkunPage> {
     final konfirmasi = konfirmasiController.text;
 
     if (nama.isEmpty || username.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Semua kolom wajib diisi.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Semua kolom wajib diisi.')));
       return;
     }
 
     if (password.length < 6) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Kata sandi minimal 6 karakter.'),
-        ),
+        const SnackBar(content: Text('Kata sandi minimal 6 karakter.')),
       );
       return;
     }
 
     if (password != konfirmasi) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Konfirmasi kata sandi tidak sama.'),
-        ),
+        const SnackBar(content: Text('Konfirmasi kata sandi tidak sama.')),
       );
       return;
     }
@@ -969,9 +935,7 @@ class _DaftarAkunPageState extends State<DaftarAkunPage> {
 
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(
-          builder: (_) => DashboardPage(nama: nama),
-        ),
+        MaterialPageRoute(builder: (_) => DashboardPage(nama: nama)),
         (route) => false,
       );
     } catch (e) {
@@ -1024,13 +988,10 @@ class _DaftarAkunPageState extends State<DaftarAkunPage> {
               prefixIcon: const Icon(Icons.lock),
               border: const OutlineInputBorder(),
               suffixIcon: IconButton(
-                onPressed: () => setState(
-                  () => sembunyikanPassword = !sembunyikanPassword,
-                ),
+                onPressed: () =>
+                    setState(() => sembunyikanPassword = !sembunyikanPassword),
                 icon: Icon(
-                  sembunyikanPassword
-                      ? Icons.visibility
-                      : Icons.visibility_off,
+                  sembunyikanPassword ? Icons.visibility : Icons.visibility_off,
                 ),
               ),
             ),
@@ -1091,9 +1052,7 @@ class _LoginPageState extends State<LoginPage> {
 
     if (username.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Masukkan nama pengguna dan kata sandi.'),
-        ),
+        const SnackBar(content: Text('Masukkan nama pengguna dan kata sandi.')),
       );
       return;
     }
@@ -1110,9 +1069,7 @@ class _LoginPageState extends State<LoginPage> {
 
       if (akun == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Nama pengguna atau kata sandi salah.'),
-          ),
+          const SnackBar(content: Text('Nama pengguna atau kata sandi salah.')),
         );
         return;
       }
@@ -1121,17 +1078,14 @@ class _LoginPageState extends State<LoginPage> {
 
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(
-          builder: (_) => DashboardPage(nama: nama),
-        ),
+        MaterialPageRoute(builder: (_) => DashboardPage(nama: nama)),
         (route) => false,
       );
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Login gagal: $e')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Login gagal: $e')));
     } finally {
       if (mounted) setState(() => loading = false);
     }
@@ -1183,105 +1137,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 }
-// ============================================================
-// WELCOME
-// ============================================================
-
-class WelcomePage extends StatefulWidget {
-  const WelcomePage({super.key});
-
-  @override
-  State<WelcomePage> createState() => _WelcomePageState();
-}
-
-class _WelcomePageState extends State<WelcomePage> {
-  final TextEditingController namaController = TextEditingController();
-
-  @override
-  void dispose() {
-    namaController.dispose();
-    super.dispose();
-  }
-
-  Future<void> mulai() async {
-    final nama = namaController.text.trim();
-
-    if (nama.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Silakan masukkan nama terlebih dahulu.')),
-      );
-      return;
-    }
-
-    try {
-      await DatabaseHelper.instance.simpanNama(nama);
-    } catch (e) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Gagal menyimpan nama: $e')));
-
-      return;
-    }
-
-    if (!mounted) return;
-
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => DashboardPage(nama: nama)),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(28),
-            child: Column(
-              children: [
-                const Icon(Icons.style_rounded, size: 90, color: Colors.indigo),
-                const SizedBox(height: 15),
-                const Text(
-                  'LexiFlip',
-                  style: TextStyle(fontSize: 40, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 5),
-                const Text(
-                  'Belajar Dasar Pemrograman C++',
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 40),
-                TextField(
-                  controller: namaController,
-                  textInputAction: TextInputAction.done,
-                  onSubmitted: (_) => mulai(),
-                  decoration: const InputDecoration(
-                    labelText: 'Nama Pengguna',
-                    prefixIcon: Icon(Icons.person),
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 18),
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: FilledButton.icon(
-                    onPressed: mulai,
-                    icon: const Icon(Icons.play_arrow),
-                    label: const Text('MULAI'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 // ============================================================
 // DASHBOARD
 // ============================================================
