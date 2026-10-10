@@ -781,197 +781,406 @@ class LexiFlipApp extends StatelessWidget {
 }
 
 // ============================================================
-// START PAGE
+// HALAMAN AWAL: DAFTAR ATAU LOGIN
 // ============================================================
 
-class StartPage extends StatefulWidget {
+class StartPage extends StatelessWidget {
   const StartPage({super.key});
 
   @override
-  State<StartPage> createState() => _StartPageState();
-}
+  Widget build(BuildContext context) {
+    return FutureBuilder<Map<String, Object?>?>(
+      future: DatabaseHelper.instance.cekSesiLogin(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
 
-class _StartPageState extends State<StartPage> {
-  String namaTersimpan = '';
-  bool loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    cekPengguna();
-  }
-
-  Future<void> cekPengguna() async {
-    try {
-      final nama = await DatabaseHelper.instance.ambilNama();
-
-      if (!mounted) return;
-
-      setState(() {
-        namaTersimpan = nama;
-        loading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-
-      setState(() {
-        loading = false;
-      });
-    }
-  }
-
-  void masuk() {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => DashboardPage(nama: namaTersimpan)),
-    );
-  }
-
-  // EDIT NAMA PENGGUNA
-  Future<void> editNama() async {
-    final controller = TextEditingController(text: namaTersimpan);
-
-    final namaBaru = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Edit Nama Pengguna'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(
-              labelText: 'Nama Pengguna',
-              prefixIcon: Icon(Icons.person),
-              border: OutlineInputBorder(),
+        if (snapshot.hasError) {
+          return Scaffold(
+            body: Center(
+              child: Text('Gagal membuka database: ${snapshot.error}'),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(dialogContext);
-              },
-              child: const Text('Batal'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final nama = controller.text.trim();
+          );
+        }
 
-                if (nama.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Nama tidak boleh kosong.')),
-                  );
-                  return;
-                }
+        final akun = snapshot.data;
 
-                Navigator.pop(dialogContext, nama);
-              },
-              child: const Text('Simpan'),
-            ),
-          ],
-        );
+        if (akun != null) {
+          return DashboardPage(
+            nama: akun['nama'] as String? ?? '',
+          );
+        }
+
+        return const WelcomePage();
       },
     );
+  }
+}
 
-    controller.dispose();
+class WelcomePage extends StatelessWidget {
+  const WelcomePage({super.key});
 
-    if (!mounted || namaBaru == null) return;
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.style_rounded,
+                  size: 90,
+                  color: Colors.indigo,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'LexiFlip',
+                  style: TextStyle(
+                    fontSize: 38,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Belajar Dasar Pemrograman C++',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 35),
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const DaftarAkunPage(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.person_add),
+                    label: const Text('DAFTAR AKUN'),
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const LoginPage(),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.login),
+                    label: const Text('LOGIN'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// HALAMAN DAFTAR AKUN
+// ============================================================
+
+class DaftarAkunPage extends StatefulWidget {
+  const DaftarAkunPage({super.key});
+
+  @override
+  State<DaftarAkunPage> createState() => _DaftarAkunPageState();
+}
+
+class _DaftarAkunPageState extends State<DaftarAkunPage> {
+  final namaController = TextEditingController();
+  final usernameController = TextEditingController();
+  final passwordController = TextEditingController();
+  final konfirmasiController = TextEditingController();
+
+  bool loading = false;
+  bool sembunyikanPassword = true;
+
+  @override
+  void dispose() {
+    namaController.dispose();
+    usernameController.dispose();
+    passwordController.dispose();
+    konfirmasiController.dispose();
+    super.dispose();
+  }
+
+  Future<void> daftar() async {
+    final nama = namaController.text.trim();
+    final username = usernameController.text.trim();
+    final password = passwordController.text;
+    final konfirmasi = konfirmasiController.text;
+
+    if (nama.isEmpty || username.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Semua kolom wajib diisi.')),
+      );
+      return;
+    }
+
+    if (password.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Kata sandi minimal 6 karakter.'),
+        ),
+      );
+      return;
+    }
+
+    if (password != konfirmasi) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Konfirmasi kata sandi tidak sama.'),
+        ),
+      );
+      return;
+    }
+
+    setState(() => loading = true);
 
     try {
-      await DatabaseHelper.instance.simpanNama(namaBaru);
+      await DatabaseHelper.instance.daftarAkun(
+        nama: nama,
+        username: username,
+        password: password,
+      );
 
       if (!mounted) return;
 
-      setState(() {
-        namaTersimpan = namaBaru;
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nama pengguna berhasil diperbarui!')),
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (_) => DashboardPage(nama: nama),
+        ),
+        (route) => false,
       );
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Gagal mengubah nama: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) setState(() => loading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-
-    // PENGGUNA LAMA
-    if (namaTersimpan.isNotEmpty) {
-      return Scaffold(
-        body: SafeArea(
-          child: Stack(
-            children: [
-              // KONTEN HALAMAN MASUK
-              Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(28),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.style_rounded,
-                        size: 90,
-                        color: Colors.indigo,
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'LexiFlip',
-                        style: TextStyle(
-                          fontSize: 38,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Selamat datang kembali, $namaTersimpan!',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 18),
-                      ),
-                      const SizedBox(height: 28),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 52,
-                        child: FilledButton.icon(
-                          onPressed: masuk,
-                          icon: const Icon(Icons.login),
-                          label: const Text('MASUK'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              // IKON PENGATURAN DI POJOK KANAN ATAS
-              Positioned(
-                top: 4,
-                right: 8,
-                child: IconButton(
-                  tooltip: 'Pengaturan nama',
-                  onPressed: editNama,
-                  icon: const Icon(
-                    Icons.settings,
-                    size: 28,
-                    color: Colors.indigo,
-                  ),
-                ),
-              ),
-            ],
+    return Scaffold(
+      appBar: AppBar(title: const Text('Daftar Akun')),
+      body: ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          const Text(
+            'Buat akun LexiFlip',
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: namaController,
+            decoration: const InputDecoration(
+              labelText: 'Nama lengkap',
+              prefixIcon: Icon(Icons.person),
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: usernameController,
+            autocorrect: false,
+            decoration: const InputDecoration(
+              labelText: 'Nama pengguna',
+              prefixIcon: Icon(Icons.account_circle),
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: passwordController,
+            obscureText: sembunyikanPassword,
+            decoration: InputDecoration(
+              labelText: 'Kata sandi',
+              prefixIcon: const Icon(Icons.lock),
+              border: const OutlineInputBorder(),
+              suffixIcon: IconButton(
+                onPressed: () => setState(
+                  () => sembunyikanPassword = !sembunyikanPassword,
+                ),
+                icon: Icon(
+                  sembunyikanPassword
+                      ? Icons.visibility
+                      : Icons.visibility_off,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: konfirmasiController,
+            obscureText: true,
+            decoration: const InputDecoration(
+              labelText: 'Konfirmasi kata sandi',
+              prefixIcon: Icon(Icons.lock_outline),
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 22),
+          SizedBox(
+            height: 52,
+            child: FilledButton(
+              onPressed: loading ? null : daftar,
+              child: loading
+                  ? const CircularProgressIndicator()
+                  : const Text('BUAT AKUN'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================
+// HALAMAN LOGIN
+// ============================================================
+
+class LoginPage extends StatefulWidget {
+  const LoginPage({super.key});
+
+  @override
+  State<LoginPage> createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
+  final usernameController = TextEditingController();
+  final passwordController = TextEditingController();
+
+  bool loading = false;
+
+  @override
+  void dispose() {
+    usernameController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> login() async {
+    final username = usernameController.text.trim();
+    final password = passwordController.text;
+
+    if (username.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Masukkan nama pengguna dan kata sandi.'),
         ),
       );
+      return;
     }
 
-    // PENGGUNA BARU
-    return const WelcomePage();
+    setState(() => loading = true);
+
+    try {
+      final akun = await DatabaseHelper.instance.loginAkun(
+        username: username,
+        password: password,
+      );
+
+      if (!mounted) return;
+
+      if (akun == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Nama pengguna atau kata sandi salah.'),
+          ),
+        );
+        return;
+      }
+
+      final nama = akun['nama'] as String? ?? '';
+
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(
+          builder: (_) => DashboardPage(nama: nama),
+        ),
+        (route) => false,
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Login gagal: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Login LexiFlip')),
+      body: ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          const Text(
+            'Selamat datang kembali!',
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 20),
+          TextField(
+            controller: usernameController,
+            autocorrect: false,
+            decoration: const InputDecoration(
+              labelText: 'Nama pengguna',
+              prefixIcon: Icon(Icons.person),
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: passwordController,
+            obscureText: true,
+            decoration: const InputDecoration(
+              labelText: 'Kata sandi',
+              prefixIcon: Icon(Icons.lock),
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 22),
+          SizedBox(
+            height: 52,
+            child: FilledButton(
+              onPressed: loading ? null : login,
+              child: loading
+                  ? const CircularProgressIndicator()
+                  : const Text('LOGIN'),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 // ============================================================
