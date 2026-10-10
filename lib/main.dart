@@ -37,15 +37,41 @@ class DatabaseHelper {
 
     final databasePath = p.join(await getDatabasesPath(), databaseName);
 
-    _database = await openDatabase(
-      databasePath,
-      version: 1,
-      onCreate: (db, version) async {
-        await _createTables(db);
-        await _seedDatabase(db);
-      },
-    );
-  }
+_database = await openDatabase(
+  databasePath,
+  version: 2,
+  onCreate: (db, version) async {
+    await _createTables(db);
+    await _seedDatabase(db);
+  },
+  onUpgrade: (db, oldVersion, newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute(
+        'ALTER TABLE pengguna ADD COLUMN username TEXT',
+      );
+
+      await db.execute(
+        'ALTER TABLE pengguna ADD COLUMN salt TEXT',
+      );
+
+      await db.execute(
+        'ALTER TABLE pengguna ADD COLUMN password_hash TEXT',
+      );
+
+      await db.execute('''
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_pengguna_username
+        ON pengguna(username)
+      ''');
+
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS sesi_login (
+          id INTEGER PRIMARY KEY CHECK (id = 1),
+          pengguna_id INTEGER NOT NULL
+        )
+      ''');
+    }
+  },
+);
 
   Future<void> _createTables(Database db) async {
     await db.execute('''
