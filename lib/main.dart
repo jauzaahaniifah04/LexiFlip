@@ -77,7 +77,10 @@ _database = await openDatabase(
     await db.execute('''
       CREATE TABLE pengguna (
         id INTEGER PRIMARY KEY,
-        nama TEXT NOT NULL
+        nama TEXT NOT NULL,
+        username TEXT,
+        salt TEXT,
+        password_hash TEXT
       )
     ''');
 
