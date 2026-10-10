@@ -1186,40 +1186,48 @@ class _FlashcardPageState extends State<FlashcardPage> {
     }
   }
 
-  Future<void> simpanStatus(String status) async {
-    if (cards.isEmpty) return;
 
-    final flashcardId = cards[index]['id'];
+Future<void> simpanStatus(String status) async {
+  if (cards.isEmpty) return;
 
-    if (flashcardId is! int) return;
+  final flashcardId = cards[index]['id'];
 
-    try {
-      await DatabaseHelper.instance.simpanFlashcardStatus(
-        flashcardId: flashcardId,
-        status: status,
-      );
-    } catch (e) {
-      if (!mounted) return;
+  if (flashcardId is! int) return;
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Gagal menyimpan status: $e')));
-
-      return;
-    }
-
+  try {
+    await DatabaseHelper.instance.simpanFlashcardStatus(
+      flashcardId: flashcardId,
+      status: status,
+    );
+  } catch (e) {
     if (!mounted) return;
 
-    if (index < cards.length - 1) {
-      setState(() {
-        index++;
-        dibalik = false;
-      });
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Semua flashcard sudah selesai!')),
-      );
-    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Gagal menyimpan status: $e')),
+    );
+    return;
   }
+
+  if (!mounted) return;
+
+  if (index < cards.length - 1) {
+    setState(() {
+      index++;
+      dibalik = false;
+    });
+  } else {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FlashcardSelesaiPage(
+          judulBab: '${widget.bab['judul']}',
+          totalKartu: cards.length,
+        ),
+      ),
+    );
+  }
+}
+
 
   @override
   Widget build(BuildContext context) {
