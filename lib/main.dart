@@ -27,7 +27,7 @@ class DatabaseHelper {
 
   static final DatabaseHelper instance = DatabaseHelper._();
 
-  static const int userId = 1;
+  static  int userId = 1;
   static const String databaseName = 'lexiflip.db';
 
   Database? _database;
