@@ -75,14 +75,16 @@ _database = await openDatabase(
 
   Future<void> _createTables(Database db) async {
     await db.execute('''
-      CREATE TABLE pengguna (
-        id INTEGER PRIMARY KEY,
-        nama TEXT NOT NULL,
-        username TEXT,
-        salt TEXT,
-        password_hash TEXT
-      )
-    ''');
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_pengguna_username
+  ON pengguna(username)
+''');
+
+await db.execute('''
+  CREATE TABLE IF NOT EXISTS sesi_login (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    pengguna_id INTEGER NOT NULL
+  )
+''');
 
     await db.execute('''
       CREATE TABLE bab (
