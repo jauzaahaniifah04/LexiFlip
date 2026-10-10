@@ -1349,6 +1349,65 @@ Future<void> simpanStatus(String status) async {
       ),
     );
   }
+
+
+class FlashcardSelesaiPage extends StatelessWidget {
+  final String judulBab;
+  final int totalKartu;
+
+  const FlashcardSelesaiPage({
+    super.key,
+    required this.judulBab,
+    required this.totalKartu,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Belajar Selesai')),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.emoji_events_rounded,
+                size: 90,
+                color: Colors.amber,
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Hebat! 🎉',
+                style: TextStyle(
+                  fontSize: 30,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Kamu telah menyelesaikan flashcard '
+                'bab $judulBab.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 17),
+              ),
+              const SizedBox(height: 10),
+              Text('Total kartu: $totalKartu'),
+              const SizedBox(height: 25),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.arrow_back),
+                  label: const Text('Kembali ke Daftar Bab'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // ============================================================
