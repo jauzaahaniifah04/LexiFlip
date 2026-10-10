@@ -154,342 +154,345 @@ class DatabaseHelper {
       await db.insert('bab', bab);
     }
 
-const materi = [
-  // BAB 1: VARIABEL
-  {
-    'bab_id': 1,
-    'judul': '1. Pengertian Variabel',
-    'isi': 'Variabel adalah tempat untuk menyimpan data di dalam program. Data tersebut disimpan menggunakan nama tertentu agar dapat dipanggil dan digunakan kembali. Dalam C++, variabel harus memiliki tipe data dan nama sebelum digunakan.',
-    'contoh': 'int umur = 20;',
-  },
-  {
-    'bab_id': 1,
-    'judul': '2. Deklarasi Variabel',
-    'isi': 'Deklarasi adalah proses mengenalkan variabel kepada program. Deklarasi dilakukan dengan menentukan tipe data dan nama variabel.',
-    'contoh': 'int umur;\numur = 20;',
-  },
-  {
-    'bab_id': 1,
-    'judul': '3. Inisialisasi Variabel',
-    'isi': 'Inisialisasi adalah pemberian nilai awal pada variabel. Nilai variabel dapat diubah selama program berjalan jika tipe datanya sesuai.',
-    'contoh': 'int nilai = 80;\nnilai = 90;',
-  },
-  {
-    'bab_id': 1,
-    'judul': '4. Aturan Penamaan Variabel',
-    'isi': 'Nama variabel dapat menggunakan huruf, angka, dan garis bawah. Nama tidak boleh diawali angka atau menggunakan kata kunci C++. Huruf besar dan kecil dibedakan.',
-    'contoh': 'int nilaiSiswa = 90;\nint jumlah_barang = 5;',
-  },
-  {
-    'bab_id': 1,
-    'judul': '5. Konstanta',
-    'isi': 'Konstanta adalah nilai yang tidak boleh diubah setelah ditetapkan. Kata kunci const digunakan untuk membuat konstanta.',
-    'contoh': 'const double phi = 3.14159;',
-  },
+    const materi = [
+      // BAB 1: VARIABEL
+      {
+        'bab_id': 1,
+        'judul': '1. Pengertian Variabel',
+        'isi': 'Variabel adalah tempat untuk menyimpan data di dalam program. Data tersebut disimpan menggunakan nama tertentu agar dapat dipanggil dan digunakan kembali. Dalam C++, variabel harus memiliki tipe data dan nama sebelum digunakan.',
+        'contoh': 'int umur = 20;',
+      },
+      {
+        'bab_id': 1,
+        'judul': '2. Deklarasi Variabel',
+        'isi': 'Deklarasi adalah proses mengenalkan variabel kepada program. Deklarasi dilakukan dengan menentukan tipe data dan nama variabel.',
+        'contoh': 'int umur;\numur = 20;',
+      },
+      {
+        'bab_id': 1,
+        'judul': '3. Inisialisasi Variabel',
+        'isi': 'Inisialisasi adalah pemberian nilai awal pada variabel. Nilai variabel dapat diubah selama program berjalan jika tipe datanya sesuai.',
+        'contoh': 'int nilai = 80;\nnilai = 90;',
+      },
+      {
+        'bab_id': 1,
+        'judul': '4. Aturan Penamaan Variabel',
+        'isi': 'Nama variabel dapat menggunakan huruf, angka, dan garis bawah. Nama tidak boleh diawali angka atau menggunakan kata kunci C++. Huruf besar dan kecil dibedakan.',
+        'contoh': 'int nilaiSiswa = 90;\nint jumlah_barang = 5;',
+      },
+      {
+        'bab_id': 1,
+        'judul': '5. Konstanta',
+        'isi': 'Konstanta adalah nilai yang tidak boleh diubah setelah ditetapkan. Kata kunci const digunakan untuk membuat konstanta.',
+        'contoh': 'const double phi = 3.14159;',
+      },
 
-  // BAB 2: TIPE DATA
-  {
-    'bab_id': 2,
-    'judul': '1. Pengertian Tipe Data',
-    'isi': 'Tipe data menentukan jenis nilai yang dapat disimpan oleh variabel. Pemilihan tipe data membantu program mengolah data dengan benar.',
-    'contoh': 'int umur = 20;\ndouble tinggi = 165.5;',
-  },
-  {
-    'bab_id': 2,
-    'judul': '2. Tipe Data Integer',
-    'isi': 'Tipe int digunakan untuk menyimpan bilangan bulat, baik positif, negatif, maupun nol.',
-    'contoh': 'int jumlahSiswa = 32;\nint suhu = -5;',
-  },
-  {
-    'bab_id': 2,
-    'judul': '3. Tipe Data Float dan Double',
-    'isi': 'Float dan double digunakan untuk menyimpan bilangan pecahan. Double umumnya memiliki presisi lebih tinggi daripada float.',
-    'contoh': 'float berat = 52.5f;\ndouble rataRata = 87.75;',
-  },
-  {
-    'bab_id': 2,
-    'judul': '4. Tipe Data Char dan String',
-    'isi': 'Char menyimpan satu karakter dengan tanda petik tunggal. String menyimpan rangkaian karakter dengan tanda petik ganda. String memerlukan pustaka string.',
-    'contoh': '#include <string>\nchar kelas = \'A\';\nstring nama = "Budi";',
-  },
-  {
-    'bab_id': 2,
-    'judul': '5. Tipe Data Boolean',
-    'isi': 'Tipe bool menyimpan nilai logika true atau false. Tipe ini sering digunakan dalam percabangan dan perulangan.',
-    'contoh': 'bool lulus = true;',
-  },
+      // BAB 2: TIPE DATA
+      {
+        'bab_id': 2,
+        'judul': '1. Pengertian Tipe Data',
+        'isi': 'Tipe data menentukan jenis nilai yang dapat disimpan oleh variabel. Pemilihan tipe data membantu program mengolah data dengan benar.',
+        'contoh': 'int umur = 20;\ndouble tinggi = 165.5;',
+      },
+      {
+        'bab_id': 2,
+        'judul': '2. Tipe Data Integer',
+        'isi': 'Tipe int digunakan untuk menyimpan bilangan bulat, baik positif, negatif, maupun nol.',
+        'contoh': 'int jumlahSiswa = 32;\nint suhu = -5;',
+      },
+      {
+        'bab_id': 2,
+        'judul': '3. Tipe Data Float dan Double',
+        'isi': 'Float dan double digunakan untuk menyimpan bilangan pecahan. Double umumnya memiliki presisi lebih tinggi daripada float.',
+        'contoh': 'float berat = 52.5f;\ndouble rataRata = 87.75;',
+      },
+      {
+        'bab_id': 2,
+        'judul': '4. Tipe Data Char dan String',
+        'isi': 'Char menyimpan satu karakter dengan tanda petik tunggal. String menyimpan rangkaian karakter dengan tanda petik ganda. String memerlukan pustaka string.',
+        'contoh':
+            '#include <string>\nchar kelas = \'A\';\nstring nama = "Budi";',
+      },
+      {
+        'bab_id': 2,
+        'judul': '5. Tipe Data Boolean',
+        'isi': 'Tipe bool menyimpan nilai logika true atau false. Tipe ini sering digunakan dalam percabangan dan perulangan.',
+        'contoh': 'bool lulus = true;',
+      },
 
-  // BAB 3: PERCABANGAN
-  {
-    'bab_id': 3,
-    'judul': '1. Pengertian Percabangan',
-    'isi': 'Percabangan memungkinkan program memilih tindakan berdasarkan kondisi. Jika kondisi benar, blok kode dijalankan.',
-    'contoh': 'if (nilai >= 75) {\n  cout << "Lulus";\n}',
-  },
-  {
-    'bab_id': 3,
-    'judul': '2. Percabangan if',
-    'isi': 'Pernyataan if menjalankan blok kode hanya ketika kondisi bernilai benar. Jika kondisi salah, blok tersebut dilewati.',
-    'contoh': 'if (umur >= 17) {\n  cout << "Boleh membuat KTP";\n}',
-  },
-  {
-    'bab_id': 3,
-    'judul': '3. Percabangan if-else',
-    'isi': 'If-else menyediakan dua pilihan tindakan. If berjalan ketika kondisi benar, sedangkan else berjalan ketika kondisi salah.',
-    'contoh': 'if (nilai >= 75) {\n  cout << "Lulus";\n} else {\n  cout << "Remedial";\n}',
-  },
-  {
-    'bab_id': 3,
-    'judul': '4. Percabangan else-if',
-    'isi': 'Else-if digunakan untuk memeriksa beberapa kondisi secara berurutan. Jika tidak ada kondisi yang benar, blok else dapat dijalankan.',
-    'contoh': 'if (nilai >= 90) {\n  cout << "A";\n} else if (nilai >= 80) {\n  cout << "B";\n} else {\n  cout << "C";\n}',
-  },
-  {
-    'bab_id': 3,
-    'judul': '5. Operator Logika',
-    'isi': 'Operator && berarti dan, || berarti atau, sedangkan ! berarti bukan. Operator ini digunakan untuk menggabungkan atau membalik kondisi.',
-    'contoh': 'if (nilai >= 75 && hadir >= 80) {\n  cout << "Lulus";\n}',
-  },
+      // BAB 3: PERCABANGAN
+      {
+        'bab_id': 3,
+        'judul': '1. Pengertian Percabangan',
+        'isi': 'Percabangan memungkinkan program memilih tindakan berdasarkan kondisi. Jika kondisi benar, blok kode dijalankan.',
+        'contoh': 'if (nilai >= 75) {\n  cout << "Lulus";\n}',
+      },
+      {
+        'bab_id': 3,
+        'judul': '2. Percabangan if',
+        'isi': 'Pernyataan if menjalankan blok kode hanya ketika kondisi bernilai benar. Jika kondisi salah, blok tersebut dilewati.',
+        'contoh': 'if (umur >= 17) {\n  cout << "Boleh membuat KTP";\n}',
+      },
+      {
+        'bab_id': 3,
+        'judul': '3. Percabangan if-else',
+        'isi': 'If-else menyediakan dua pilihan tindakan. If berjalan ketika kondisi benar, sedangkan else berjalan ketika kondisi salah.',
+        'contoh': 'if (nilai >= 75) {\n  cout << "Lulus";\n} else {\n  cout << "Remedial";\n}',
+      },
+      {
+        'bab_id': 3,
+        'judul': '4. Percabangan else-if',
+        'isi': 'Else-if digunakan untuk memeriksa beberapa kondisi secara berurutan. Jika tidak ada kondisi yang benar, blok else dapat dijalankan.',
+        'contoh': 'if (nilai >= 90) {\n  cout << "A";\n} else if (nilai >= 80) {\n  cout << "B";\n} else {\n  cout << "C";\n}',
+      },
+      {
+        'bab_id': 3,
+        'judul': '5. Operator Logika',
+        'isi': 'Operator && berarti dan, || berarti atau, sedangkan ! berarti bukan. Operator ini digunakan untuk menggabungkan atau membalik kondisi.',
+        'contoh': 'if (nilai >= 75 && hadir >= 80) {\n  cout << "Lulus";\n}',
+      },
 
-  // BAB 4: PERULANGAN
-  {
-    'bab_id': 4,
-    'judul': '1. Pengertian Perulangan',
-    'isi': 'Perulangan digunakan untuk menjalankan perintah berkali-kali. Jenis yang umum dipelajari adalah for, while, dan do-while.',
-    'contoh': 'for (int i = 0; i < 5; i++) {\n  cout << i << endl;\n}',
-  },
-  {
-    'bab_id': 4,
-    'judul': '2. Perulangan for',
-    'isi': 'For cocok digunakan ketika jumlah pengulangan diketahui. Inisialisasi menentukan nilai awal, kondisi menentukan kapan perulangan berjalan, dan perubahan memperbarui penghitung.',
-    'contoh': 'for (int i = 1; i <= 5; i++) {\n  cout << i << endl;\n}',
-  },
-  {
-    'bab_id': 4,
-    'judul': '3. Perulangan while',
-    'isi': 'While memeriksa kondisi sebelum menjalankan kode. Jika kondisi awal salah, blok tidak dijalankan. Pastikan kondisi dapat berubah agar tidak terjadi perulangan tanpa akhir.',
-    'contoh': 'int i = 1;\nwhile (i <= 5) {\n  cout << i << endl;\n  i++;\n}',
-  },
-  {
-    'bab_id': 4,
-    'judul': '4. Perulangan do-while',
-    'isi': 'Do-while menjalankan blok kode terlebih dahulu, kemudian memeriksa kondisi. Karena itu, kode dijalankan minimal satu kali.',
-    'contoh': 'int i = 1;\ndo {\n  cout << i << endl;\n  i++;\n} while (i <= 5);',
-  },
-  {
-    'bab_id': 4,
-    'judul': '5. Menghentikan Perulangan',
-    'isi': 'Break menghentikan perulangan secara langsung. Continue melewati sisa perintah pada putaran saat ini dan melanjutkan putaran berikutnya.',
-    'contoh': 'for (int i = 1; i <= 5; i++) {\n  if (i == 3) continue;\n  cout << i << endl;\n}',
-  },
+      // BAB 4: PERULANGAN
+      {
+        'bab_id': 4,
+        'judul': '1. Pengertian Perulangan',
+        'isi': 'Perulangan digunakan untuk menjalankan perintah berkali-kali. Jenis yang umum dipelajari adalah for, while, dan do-while.',
+        'contoh': 'for (int i = 0; i < 5; i++) {\n  cout << i << endl;\n}',
+      },
+      {
+        'bab_id': 4,
+        'judul': '2. Perulangan for',
+        'isi': 'For cocok digunakan ketika jumlah pengulangan diketahui. Inisialisasi menentukan nilai awal, kondisi menentukan kapan perulangan berjalan, dan perubahan memperbarui penghitung.',
+        'contoh': 'for (int i = 1; i <= 5; i++) {\n  cout << i << endl;\n}',
+      },
+      {
+        'bab_id': 4,
+        'judul': '3. Perulangan while',
+        'isi': 'While memeriksa kondisi sebelum menjalankan kode. Jika kondisi awal salah, blok tidak dijalankan. Pastikan kondisi dapat berubah agar tidak terjadi perulangan tanpa akhir.',
+        'contoh':
+            'int i = 1;\nwhile (i <= 5) {\n  cout << i << endl;\n  i++;\n}',
+      },
+      {
+        'bab_id': 4,
+        'judul': '4. Perulangan do-while',
+        'isi': 'Do-while menjalankan blok kode terlebih dahulu, kemudian memeriksa kondisi. Karena itu, kode dijalankan minimal satu kali.',
+        'contoh':
+            'int i = 1;\ndo {\n  cout << i << endl;\n  i++;\n} while (i <= 5);',
+      },
+      {
+        'bab_id': 4,
+        'judul': '5. Menghentikan Perulangan',
+        'isi': 'Break menghentikan perulangan secara langsung. Continue melewati sisa perintah pada putaran saat ini dan melanjutkan putaran berikutnya.',
+        'contoh': 'for (int i = 1; i <= 5; i++) {\n  if (i == 3) continue;\n  cout << i << endl;\n}',
+      },
 
-  // BAB 5: STRUKTUR DATA
-  {
-    'bab_id': 5,
-    'judul': '1. Pengertian Array',
-    'isi': 'Array adalah struktur data yang menyimpan sejumlah elemen dengan tipe data sama dalam satu nama variabel. Setiap elemen diakses menggunakan indeks.',
-    'contoh': 'int angka[3] = {10, 20, 30};',
-  },
-  {
-    'bab_id': 5,
-    'judul': '2. Indeks Array',
-    'isi': 'Indeks array C++ dimulai dari 0. Array berukuran 3 memiliki indeks 0, 1, dan 2. Mengakses indeks di luar batas array dapat menyebabkan perilaku tidak terduga.',
-    'contoh': 'int angka[3] = {10, 20, 30};\ncout << angka[0]; // 10',
-  },
-  {
-    'bab_id': 5,
-    'judul': '3. Mengubah Elemen Array',
-    'isi': 'Elemen array dapat dibaca atau diubah menggunakan indeks. Perubahan dilakukan dengan memberikan nilai baru pada posisi yang ditentukan.',
-    'contoh': 'int angka[3] = {10, 20, 30};\nangka[1] = 50;',
-  },
-  {
-    'bab_id': 5,
-    'judul': '4. Array dan Perulangan',
-    'isi': 'Perulangan dapat digunakan untuk membaca seluruh elemen array. Indeks dimulai dari 0 sampai kurang dari jumlah elemen.',
-    'contoh': 'int angka[3] = {10, 20, 30};\nfor (int i = 0; i < 3; i++) {\n  cout << angka[i] << endl;\n}',
-  },
-  {
-    'bab_id': 5,
-    'judul': '5. Array Dua Dimensi',
-    'isi': 'Array dua dimensi menyimpan data dalam bentuk baris dan kolom, seperti tabel. Setiap elemen diakses menggunakan indeks baris dan kolom.',
-    'contoh': 'int nilai[2][2] = {{80, 90}, {75, 85}};\ncout << nilai[0][1]; // 90',
-  },
-];
-
-for (final item in materi) {
-  await db.insert('materi', item);
-}
+      // BAB 5: STRUKTUR DATA
+      {
+        'bab_id': 5,
+        'judul': '1. Pengertian Array',
+        'isi': 'Array adalah struktur data yang menyimpan sejumlah elemen dengan tipe data sama dalam satu nama variabel. Setiap elemen diakses menggunakan indeks.',
+        'contoh': 'int angka[3] = {10, 20, 30};',
+      },
+      {
+        'bab_id': 5,
+        'judul': '2. Indeks Array',
+        'isi': 'Indeks array C++ dimulai dari 0. Array berukuran 3 memiliki indeks 0, 1, dan 2. Mengakses indeks di luar batas array dapat menyebabkan perilaku tidak terduga.',
+        'contoh': 'int angka[3] = {10, 20, 30};\ncout << angka[0]; // 10',
+      },
+      {
+        'bab_id': 5,
+        'judul': '3. Mengubah Elemen Array',
+        'isi': 'Elemen array dapat dibaca atau diubah menggunakan indeks. Perubahan dilakukan dengan memberikan nilai baru pada posisi yang ditentukan.',
+        'contoh': 'int angka[3] = {10, 20, 30};\nangka[1] = 50;',
+      },
+      {
+        'bab_id': 5,
+        'judul': '4. Array dan Perulangan',
+        'isi': 'Perulangan dapat digunakan untuk membaca seluruh elemen array. Indeks dimulai dari 0 sampai kurang dari jumlah elemen.',
+        'contoh': 'int angka[3] = {10, 20, 30};\nfor (int i = 0; i < 3; i++) {\n  cout << angka[i] << endl;\n}',
+      },
+      {
+        'bab_id': 5,
+        'judul': '5. Array Dua Dimensi',
+        'isi': 'Array dua dimensi menyimpan data dalam bentuk baris dan kolom, seperti tabel. Setiap elemen diakses menggunakan indeks baris dan kolom.',
+        'contoh': 'int nilai[2][2] = {{80, 90}, {75, 85}};\ncout << nilai[0][1]; // 90',
+      },
+    ];
 
     for (final item in materi) {
       await db.insert('materi', item);
     }
 
- 
-const flashcards = [
-  // BAB 1: VARIABEL
-  {
-    'bab_id': 1,
-    'pertanyaan': 'Apa yang dimaksud dengan variabel?',
-    'jawaban': 'Tempat untuk menyimpan data atau nilai yang memiliki nama dan tipe data.',
-    'contoh': 'int umur = 20;',
-  },
-  {
-    'bab_id': 1,
-    'pertanyaan': 'Apa perbedaan deklarasi dan inisialisasi?',
-    'jawaban': 'Deklarasi mengenalkan variabel. Inisialisasi memberikan nilai awal kepada variabel.',
-    'contoh': 'int umur; // deklarasi\numur = 20; // pemberian nilai',
-  },
-  {
-    'bab_id': 1,
-    'pertanyaan': 'Bagaimana cara mengubah nilai variabel?',
-    'jawaban': 'Berikan nilai baru menggunakan operator penugasan = selama tipe datanya sesuai.',
-    'contoh': 'int nilai = 80;\nnilai = 90;',
-  },
-  {
-    'bab_id': 1,
-    'pertanyaan': 'Apakah nama variabel boleh diawali angka?',
-    'jawaban': 'Tidak. Nama variabel tidak boleh diawali angka dan tidak boleh menggunakan kata kunci C++.',
-    'contoh': 'int nilai1 = 80; // benar',
-  },
-  {
-    'bab_id': 1,
-    'pertanyaan': 'Apa fungsi const?',
-    'jawaban': 'Membuat variabel yang nilainya tidak dapat diubah setelah diinisialisasi.',
-    'contoh': 'const double phi = 3.14159;',
-  },
+    for (final item in materi) {
+      await db.insert('materi', item);
+    }
 
-  // BAB 2: TIPE DATA
-  {
-    'bab_id': 2,
-    'pertanyaan': 'Apa fungsi tipe data?',
-    'jawaban': 'Menentukan jenis nilai yang dapat disimpan dan diolah oleh variabel.',
-    'contoh': 'int umur = 20;',
-  },
-  {
-    'bab_id': 2,
-    'pertanyaan': 'Untuk apa tipe int digunakan?',
-    'jawaban': 'Untuk menyimpan bilangan bulat, seperti jumlah siswa atau umur dalam tahun.',
-    'contoh': 'int jumlahSiswa = 32;',
-  },
-  {
-    'bab_id': 2,
-    'pertanyaan': 'Apa perbedaan float dan double?',
-    'jawaban': 'Keduanya menyimpan bilangan pecahan, tetapi double umumnya memiliki presisi lebih tinggi.',
-    'contoh': 'float berat = 52.5f;\ndouble nilai = 87.75;',
-  },
-  {
-    'bab_id': 2,
-    'pertanyaan': 'Apa perbedaan char dan string?',
-    'jawaban': 'Char menyimpan satu karakter, sedangkan string menyimpan rangkaian karakter.',
-    'contoh': 'char kelas = \'A\';\nstring nama = "Budi";',
-  },
-  {
-    'bab_id': 2,
-    'pertanyaan': 'Nilai apa yang disimpan oleh bool?',
-    'jawaban': 'Nilai logika true atau false.',
-    'contoh': 'bool lulus = true;',
-  },
+    const flashcards = [
+      // BAB 1: VARIABEL
+      {
+        'bab_id': 1,
+        'pertanyaan': 'Apa yang dimaksud dengan variabel?',
+        'jawaban': 'Tempat untuk menyimpan data atau nilai yang memiliki nama dan tipe data.',
+        'contoh': 'int umur = 20;',
+      },
+      {
+        'bab_id': 1,
+        'pertanyaan': 'Apa perbedaan deklarasi dan inisialisasi?',
+        'jawaban': 'Deklarasi mengenalkan variabel. Inisialisasi memberikan nilai awal kepada variabel.',
+        'contoh': 'int umur; // deklarasi\numur = 20; // pemberian nilai',
+      },
+      {
+        'bab_id': 1,
+        'pertanyaan': 'Bagaimana cara mengubah nilai variabel?',
+        'jawaban': 'Berikan nilai baru menggunakan operator penugasan = selama tipe datanya sesuai.',
+        'contoh': 'int nilai = 80;\nnilai = 90;',
+      },
+      {
+        'bab_id': 1,
+        'pertanyaan': 'Apakah nama variabel boleh diawali angka?',
+        'jawaban': 'Tidak. Nama variabel tidak boleh diawali angka dan tidak boleh menggunakan kata kunci C++.',
+        'contoh': 'int nilai1 = 80; // benar',
+      },
+      {
+        'bab_id': 1,
+        'pertanyaan': 'Apa fungsi const?',
+        'jawaban': 'Membuat variabel yang nilainya tidak dapat diubah setelah diinisialisasi.',
+        'contoh': 'const double phi = 3.14159;',
+      },
 
-  // BAB 3: PERCABANGAN
-  {
-    'bab_id': 3,
-    'pertanyaan': 'Apa fungsi percabangan?',
-    'jawaban': 'Memilih tindakan yang dijalankan berdasarkan kondisi tertentu.',
-    'contoh': 'if (nilai >= 75) {\n  cout << "Lulus";\n}',
-  },
-  {
-    'bab_id': 3,
-    'pertanyaan': 'Kapan blok if dijalankan?',
-    'jawaban': 'Ketika kondisi yang diperiksa bernilai benar atau true.',
-    'contoh': 'if (umur >= 17) {\n  cout << "Dewasa";\n}',
-  },
-  {
-    'bab_id': 3,
-    'pertanyaan': 'Apa fungsi else pada if-else?',
-    'jawaban': 'Menjalankan pilihan alternatif ketika kondisi pada if bernilai salah.',
-    'contoh': 'if (nilai >= 75) {\n  cout << "Lulus";\n} else {\n  cout << "Remedial";\n}',
-  },
-  {
-    'bab_id': 3,
-    'pertanyaan': 'Untuk apa else-if digunakan?',
-    'jawaban': 'Memeriksa beberapa kondisi secara berurutan dan memilih blok yang kondisinya benar pertama kali.',
-    'contoh': 'if (nilai >= 90) {\n  cout << "A";\n} else if (nilai >= 80) {\n  cout << "B";\n}',
-  },
-  {
-    'bab_id': 3,
-    'pertanyaan': 'Apa arti operator && dan ||?',
-    'jawaban': '&& berarti dan; || berarti atau. Keduanya digunakan untuk menggabungkan kondisi.',
-    'contoh': 'if (nilai >= 75 && hadir >= 80) {\n  cout << "Lulus";\n}',
-  },
+      // BAB 2: TIPE DATA
+      {
+        'bab_id': 2,
+        'pertanyaan': 'Apa fungsi tipe data?',
+        'jawaban': 'Menentukan jenis nilai yang dapat disimpan dan diolah oleh variabel.',
+        'contoh': 'int umur = 20;',
+      },
+      {
+        'bab_id': 2,
+        'pertanyaan': 'Untuk apa tipe int digunakan?',
+        'jawaban': 'Untuk menyimpan bilangan bulat, seperti jumlah siswa atau umur dalam tahun.',
+        'contoh': 'int jumlahSiswa = 32;',
+      },
+      {
+        'bab_id': 2,
+        'pertanyaan': 'Apa perbedaan float dan double?',
+        'jawaban': 'Keduanya menyimpan bilangan pecahan, tetapi double umumnya memiliki presisi lebih tinggi.',
+        'contoh': 'float berat = 52.5f;\ndouble nilai = 87.75;',
+      },
+      {
+        'bab_id': 2,
+        'pertanyaan': 'Apa perbedaan char dan string?',
+        'jawaban': 'Char menyimpan satu karakter, sedangkan string menyimpan rangkaian karakter.',
+        'contoh': 'char kelas = \'A\';\nstring nama = "Budi";',
+      },
+      {
+        'bab_id': 2,
+        'pertanyaan': 'Nilai apa yang disimpan oleh bool?',
+        'jawaban': 'Nilai logika true atau false.',
+        'contoh': 'bool lulus = true;',
+      },
 
-  // BAB 4: PERULANGAN
-  {
-    'bab_id': 4,
-    'pertanyaan': 'Apa fungsi perulangan?',
-    'jawaban': 'Menjalankan suatu blok kode berulang kali selama kondisi atau aturan perulangan terpenuhi.',
-    'contoh': 'for (int i = 0; i < 5; i++) {\n  cout << i;\n}',
-  },
-  {
-    'bab_id': 4,
-    'pertanyaan': 'Kapan perulangan for cocok digunakan?',
-    'jawaban': 'Ketika jumlah pengulangan diketahui atau dapat ditentukan dengan penghitung.',
-    'contoh': 'for (int i = 1; i <= 5; i++) {\n  cout << i;\n}',
-  },
-  {
-    'bab_id': 4,
-    'pertanyaan': 'Kapan kondisi while diperiksa?',
-    'jawaban': 'Sebelum blok kode dijalankan. Jika kondisi awal salah, blok tidak dijalankan.',
-    'contoh': 'int i = 1;\nwhile (i <= 5) {\n  cout << i;\n  i++;\n}',
-  },
-  {
-    'bab_id': 4,
-    'pertanyaan': 'Apa keistimewaan do-while?',
-    'jawaban': 'Blok kode dijalankan terlebih dahulu, sehingga selalu berlangsung minimal satu kali.',
-    'contoh': 'int i = 1;\ndo {\n  cout << i;\n  i++;\n} while (i <= 5);',
-  },
-  {
-    'bab_id': 4,
-    'pertanyaan': 'Apa perbedaan break dan continue?',
-    'jawaban': 'Break menghentikan perulangan; continue melewati sisa perintah pada putaran saat ini.',
-    'contoh': 'if (i == 3) continue;',
-  },
+      // BAB 3: PERCABANGAN
+      {
+        'bab_id': 3,
+        'pertanyaan': 'Apa fungsi percabangan?',
+        'jawaban':
+            'Memilih tindakan yang dijalankan berdasarkan kondisi tertentu.',
+        'contoh': 'if (nilai >= 75) {\n  cout << "Lulus";\n}',
+      },
+      {
+        'bab_id': 3,
+        'pertanyaan': 'Kapan blok if dijalankan?',
+        'jawaban': 'Ketika kondisi yang diperiksa bernilai benar atau true.',
+        'contoh': 'if (umur >= 17) {\n  cout << "Dewasa";\n}',
+      },
+      {
+        'bab_id': 3,
+        'pertanyaan': 'Apa fungsi else pada if-else?',
+        'jawaban': 'Menjalankan pilihan alternatif ketika kondisi pada if bernilai salah.',
+        'contoh': 'if (nilai >= 75) {\n  cout << "Lulus";\n} else {\n  cout << "Remedial";\n}',
+      },
+      {
+        'bab_id': 3,
+        'pertanyaan': 'Untuk apa else-if digunakan?',
+        'jawaban': 'Memeriksa beberapa kondisi secara berurutan dan memilih blok yang kondisinya benar pertama kali.',
+        'contoh': 'if (nilai >= 90) {\n  cout << "A";\n} else if (nilai >= 80) {\n  cout << "B";\n}',
+      },
+      {
+        'bab_id': 3,
+        'pertanyaan': 'Apa arti operator && dan ||?',
+        'jawaban': '&& berarti dan; || berarti atau. Keduanya digunakan untuk menggabungkan kondisi.',
+        'contoh': 'if (nilai >= 75 && hadir >= 80) {\n  cout << "Lulus";\n}',
+      },
 
-  // BAB 5: STRUKTUR DATA
-  {
-    'bab_id': 5,
-    'pertanyaan': 'Apa yang dimaksud dengan array?',
-    'jawaban': 'Struktur data yang menyimpan sejumlah elemen bertipe sama dengan satu nama variabel.',
-    'contoh': 'int angka[3] = {10, 20, 30};',
-  },
-  {
-    'bab_id': 5,
-    'pertanyaan': 'Dari angka berapa indeks array C++ dimulai?',
-    'jawaban': 'Indeks array dimulai dari 0.',
-    'contoh': 'int angka[3] = {10, 20, 30};\ncout << angka[0];',
-  },
-  {
-    'bab_id': 5,
-    'pertanyaan': 'Bagaimana mengubah elemen array?',
-    'jawaban': 'Gunakan nama array, indeks elemen, dan operator penugasan.',
-    'contoh': 'angka[1] = 50;',
-  },
-  {
-    'bab_id': 5,
-    'pertanyaan': 'Bagaimana cara membaca semua elemen array?',
-    'jawaban': 'Gunakan perulangan dan indeks dari 0 sampai kurang dari jumlah elemen.',
-    'contoh': 'for (int i = 0; i < 3; i++) {\n  cout << angka[i];\n}',
-  },
-  {
-    'bab_id': 5,
-    'pertanyaan': 'Apa itu array dua dimensi?',
-    'jawaban': 'Array yang menyimpan data dalam baris dan kolom dan diakses dengan dua indeks.',
-    'contoh': 'int nilai[2][2] = {{80, 90}, {75, 85}};',
-  },
-];
+      // BAB 4: PERULANGAN
+      {
+        'bab_id': 4,
+        'pertanyaan': 'Apa fungsi perulangan?',
+        'jawaban': 'Menjalankan suatu blok kode berulang kali selama kondisi atau aturan perulangan terpenuhi.',
+        'contoh': 'for (int i = 0; i < 5; i++) {\n  cout << i;\n}',
+      },
+      {
+        'bab_id': 4,
+        'pertanyaan': 'Kapan perulangan for cocok digunakan?',
+        'jawaban': 'Ketika jumlah pengulangan diketahui atau dapat ditentukan dengan penghitung.',
+        'contoh': 'for (int i = 1; i <= 5; i++) {\n  cout << i;\n}',
+      },
+      {
+        'bab_id': 4,
+        'pertanyaan': 'Kapan kondisi while diperiksa?',
+        'jawaban': 'Sebelum blok kode dijalankan. Jika kondisi awal salah, blok tidak dijalankan.',
+        'contoh': 'int i = 1;\nwhile (i <= 5) {\n  cout << i;\n  i++;\n}',
+      },
+      {
+        'bab_id': 4,
+        'pertanyaan': 'Apa keistimewaan do-while?',
+        'jawaban': 'Blok kode dijalankan terlebih dahulu, sehingga selalu berlangsung minimal satu kali.',
+        'contoh': 'int i = 1;\ndo {\n  cout << i;\n  i++;\n} while (i <= 5);',
+      },
+      {
+        'bab_id': 4,
+        'pertanyaan': 'Apa perbedaan break dan continue?',
+        'jawaban': 'Break menghentikan perulangan; continue melewati sisa perintah pada putaran saat ini.',
+        'contoh': 'if (i == 3) continue;',
+      },
 
-for (final item in flashcards) {
-  await db.insert('flashcard', item);
-}
+      // BAB 5: STRUKTUR DATA
+      {
+        'bab_id': 5,
+        'pertanyaan': 'Apa yang dimaksud dengan array?',
+        'jawaban': 'Struktur data yang menyimpan sejumlah elemen bertipe sama dengan satu nama variabel.',
+        'contoh': 'int angka[3] = {10, 20, 30};',
+      },
+      {
+        'bab_id': 5,
+        'pertanyaan': 'Dari angka berapa indeks array C++ dimulai?',
+        'jawaban': 'Indeks array dimulai dari 0.',
+        'contoh': 'int angka[3] = {10, 20, 30};\ncout << angka[0];',
+      },
+      {
+        'bab_id': 5,
+        'pertanyaan': 'Bagaimana mengubah elemen array?',
+        'jawaban': 'Gunakan nama array, indeks elemen, dan operator penugasan.',
+        'contoh': 'angka[1] = 50;',
+      },
+      {
+        'bab_id': 5,
+        'pertanyaan': 'Bagaimana cara membaca semua elemen array?',
+        'jawaban': 'Gunakan perulangan dan indeks dari 0 sampai kurang dari jumlah elemen.',
+        'contoh': 'for (int i = 0; i < 3; i++) {\n  cout << angka[i];\n}',
+      },
+      {
+        'bab_id': 5,
+        'pertanyaan': 'Apa itu array dua dimensi?',
+        'jawaban': 'Array yang menyimpan data dalam baris dan kolom dan diakses dengan dua indeks.',
+        'contoh': 'int nilai[2][2] = {{80, 90}, {75, 85}};',
+      },
+    ];
+
+    for (final item in flashcards) {
+      await db.insert('flashcard', item);
+    }
 
     for (final item in flashcards) {
       await db.insert('flashcard', item);
@@ -1453,48 +1456,45 @@ class _FlashcardPageState extends State<FlashcardPage> {
     }
   }
 
+  Future<void> simpanStatus(String status) async {
+    if (cards.isEmpty) return;
 
-Future<void> simpanStatus(String status) async {
-  if (cards.isEmpty) return;
+    final flashcardId = cards[index]['id'];
 
-  final flashcardId = cards[index]['id'];
+    if (flashcardId is! int) return;
 
-  if (flashcardId is! int) return;
+    try {
+      await DatabaseHelper.instance.simpanFlashcardStatus(
+        flashcardId: flashcardId,
+        status: status,
+      );
+    } catch (e) {
+      if (!mounted) return;
 
-  try {
-    await DatabaseHelper.instance.simpanFlashcardStatus(
-      flashcardId: flashcardId,
-      status: status,
-    );
-  } catch (e) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Gagal menyimpan status: $e')));
+      return;
+    }
+
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Gagal menyimpan status: $e')),
-    );
-    return;
-  }
-
-  if (!mounted) return;
-
-  if (index < cards.length - 1) {
-    setState(() {
-      index++;
-      dibalik = false;
-    });
-  } else {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => FlashcardSelesaiPage(
-          judulBab: '${widget.bab['judul']}',
-          totalKartu: cards.length,
+    if (index < cards.length - 1) {
+      setState(() {
+        index++;
+        dibalik = false;
+      });
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => FlashcardSelesaiPage(
+            judulBab: '${widget.bab['judul']}',
+            totalKartu: cards.length,
+          ),
         ),
-      ),
-    );
+      );
+    }
   }
-}
-
 
   @override
   Widget build(BuildContext context) {
@@ -1616,7 +1616,7 @@ Future<void> simpanStatus(String status) async {
       ),
     );
   }
-
+}
 
 class FlashcardSelesaiPage extends StatelessWidget {
   final String judulBab;
@@ -1646,10 +1646,7 @@ class FlashcardSelesaiPage extends StatelessWidget {
               const SizedBox(height: 20),
               const Text(
                 'Hebat! 🎉',
-                style: TextStyle(
-                  fontSize: 30,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 10),
               Text(
