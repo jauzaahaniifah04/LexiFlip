@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
+final ValueNotifier<int> progressDataVersion = ValueNotifier<int>(0);
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -41,7 +43,7 @@ class DatabaseHelper {
 
     _database = await openDatabase(
       databasePath,
-      version: 4,
+      version: 5,
       onCreate: (db, version) async {
         await _createTables(db);
         await _seedDatabase(db);
@@ -53,6 +55,9 @@ class DatabaseHelper {
         if (oldVersion < 4) {
           await _createAppPreferencesTable(db);
         }
+        if (oldVersion < 5) {
+          await _createMateriProgressTable(db);
+        }
       },
     );
   }
@@ -62,6 +67,18 @@ class DatabaseHelper {
       CREATE TABLE IF NOT EXISTS preferensi_aplikasi (
         kunci TEXT PRIMARY KEY,
         nilai TEXT NOT NULL
+      )
+    ''');
+  }
+
+  Future<void> _createMateriProgressTable(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS log_materi (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pengguna_id INTEGER NOT NULL,
+        materi_id INTEGER NOT NULL,
+        tanggal TEXT NOT NULL,
+        UNIQUE (pengguna_id, materi_id)
       )
     ''');
   }
@@ -112,6 +129,7 @@ class DatabaseHelper {
   Future<void> _createTables(Database db) async {
     await _ensureAuthSchema(db);
     await _createAppPreferencesTable(db);
+    await _createMateriProgressTable(db);
 
     await db.execute('''
       CREATE TABLE bab (
@@ -192,6 +210,35 @@ class DatabaseHelper {
       'kunci': key,
       'nilai': value,
     }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<Set<int>> getMateriSelesaiIds({required List<int> materiIds}) async {
+    if (userId == 0 || materiIds.isEmpty) return {};
+
+    final placeholders = List.filled(materiIds.length, '?').join(', ');
+    final rows = await database.rawQuery(
+      '''
+      SELECT materi_id
+      FROM log_materi
+      WHERE pengguna_id = ?
+        AND materi_id IN ($placeholders)
+      ''',
+      [userId, ...materiIds],
+    );
+    return rows.map((row) => row['materi_id'] as int).toSet();
+  }
+
+  Future<void> tandaiMateriSelesai({required int materiId}) async {
+    if (userId == 0) {
+      throw StateError('Tidak ada pengguna yang sedang login.');
+    }
+
+    await database.insert('log_materi', {
+      'pengguna_id': userId,
+      'materi_id': materiId,
+      'tanggal': DateTime.now().toIso8601String(),
+    }, conflictAlgorithm: ConflictAlgorithm.ignore);
+    progressDataVersion.value++;
   }
 
   Future<void> _seedDatabase(Database db) async {
@@ -786,6 +833,7 @@ class DatabaseHelper {
       'status': status,
       'tanggal': DateTime.now().toIso8601String(),
     });
+    progressDataVersion.value++;
   }
 
   Future<void> simpanHasilLatihan({
@@ -802,6 +850,7 @@ class DatabaseHelper {
       'keterangan': keterangan,
       'tanggal': DateTime.now().toIso8601String(),
     });
+    progressDataVersion.value++;
   }
 }
 
@@ -1872,21 +1921,54 @@ class ChapterDetailPage extends StatelessWidget {
 // MATERI
 // ============================================================
 
-class MateriPage extends StatelessWidget {
+class MateriPage extends StatefulWidget {
   final Map<String, Object?> bab;
 
   const MateriPage({super.key, required this.bab});
 
   @override
+  State<MateriPage> createState() => _MateriPageState();
+}
+
+class _MateriPageState extends State<MateriPage> {
+  late final Future<_MateriPageData> _futureMateri = _muatMateri();
+  final Set<int> _baruDitandaiSelesai = {};
+
+  Future<_MateriPageData> _muatMateri() async {
+    final data = await DatabaseHelper.instance.database.query(
+      'materi',
+      where: 'bab_id = ?',
+      whereArgs: [widget.bab['id']],
+    );
+    final ids = data.map((materi) => materi['id']).whereType<int>().toList();
+    final selesaiIds = await DatabaseHelper.instance.getMateriSelesaiIds(
+      materiIds: ids,
+    );
+    return _MateriPageData(materi: data, selesaiIds: selesaiIds);
+  }
+
+  Future<void> _tandaiSelesai(int materiId) async {
+    try {
+      await DatabaseHelper.instance.tandaiMateriSelesai(materiId: materiId);
+      if (!mounted) return;
+      setState(() => _baruDitandaiSelesai.add(materiId));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Materi ditandai selesai.')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal menyimpan progres materi: $e')),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('${bab['judul']}')),
-      body: FutureBuilder<List<Map<String, Object?>>>(
-        future: DatabaseHelper.instance.database.query(
-          'materi',
-          where: 'bab_id = ?',
-          whereArgs: [bab['id']],
-        ),
+      appBar: AppBar(title: Text('${widget.bab['judul']}')),
+      body: FutureBuilder<_MateriPageData>(
+        future: _futureMateri,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
             return const Center(child: CircularProgressIndicator());
@@ -1901,7 +1983,11 @@ class MateriPage extends StatelessWidget {
             );
           }
 
-          final data = snapshot.data ?? [];
+          final data = snapshot.data?.materi ?? [];
+          final selesaiIds = <int>{
+            ...?snapshot.data?.selesaiIds,
+            ..._baruDitandaiSelesai,
+          };
 
           if (data.isEmpty) {
             return const Center(child: Text('Belum ada materi pada bab ini.'));
@@ -1936,6 +2022,27 @@ class MateriPage extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       CodeBox(text: '${materi['contoh']}'),
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: FilledButton.icon(
+                          onPressed:
+                              materi['id'] is int &&
+                                  !selesaiIds.contains(materi['id'])
+                              ? () => _tandaiSelesai(materi['id'] as int)
+                              : null,
+                          icon: Icon(
+                            selesaiIds.contains(materi['id'])
+                                ? Icons.check_circle
+                                : Icons.check,
+                          ),
+                          label: Text(
+                            selesaiIds.contains(materi['id'])
+                                ? 'Selesai'
+                                : 'Tandai selesai',
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -1946,6 +2053,13 @@ class MateriPage extends StatelessWidget {
       ),
     );
   }
+}
+
+class _MateriPageData {
+  final List<Map<String, Object?>> materi;
+  final Set<int> selesaiIds;
+
+  const _MateriPageData({required this.materi, required this.selesaiIds});
 }
 
 // ============================================================
@@ -1959,18 +2073,23 @@ class CodeBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: Colors.black87,
+        color: colorScheme.inverseSurface,
         borderRadius: BorderRadius.circular(12),
       ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Text(
           text,
-          style: const TextStyle(color: Colors.white, fontFamily: 'monospace'),
+          style: TextStyle(
+            color: colorScheme.onInverseSurface,
+            fontFamily: 'monospace',
+          ),
         ),
       ),
     );
@@ -2714,7 +2833,7 @@ class ProgressPage extends StatefulWidget {
 
 class _ProgressPageState extends State<ProgressPage> {
   // Future untuk statistik
-  late Future<Map<String, int>> _futureStatistik;
+  late Future<Map<String, Object?>> _futureStatistik;
 
   // Future untuk riwayat latihan
   late Future<List<Map<String, Object?>>> _futureHistory;
@@ -2726,14 +2845,45 @@ class _ProgressPageState extends State<ProgressPage> {
     // Pertama kali halaman dibuka
     _futureStatistik = ambilStatistik();
     _futureHistory = ambilRiwayat();
+    progressDataVersion.addListener(_onProgressChanged);
+  }
+
+  @override
+  void dispose() {
+    progressDataVersion.removeListener(_onProgressChanged);
+    super.dispose();
+  }
+
+  void _onProgressChanged() {
+    refreshData(showMessage: false);
   }
 
   // ============================================================
   // AMBIL STATISTIK DARI DATABASE
   // ============================================================
 
-  Future<Map<String, int>> ambilStatistik() async {
+  Future<Map<String, Object?>> ambilStatistik() async {
     final db = DatabaseHelper.instance.database;
+
+    final totalMateri =
+        Sqflite.firstIntValue(
+          await db.rawQuery('SELECT COUNT(*) FROM materi'),
+        ) ??
+        0;
+
+    final materiSelesai =
+        Sqflite.firstIntValue(
+          await db.rawQuery(
+            '''
+            SELECT COUNT(DISTINCT materi_id)
+            FROM log_materi
+            INNER JOIN materi ON materi.id = log_materi.materi_id
+            WHERE log_materi.pengguna_id = ?
+            ''',
+            [DatabaseHelper.userId],
+          ),
+        ) ??
+        0;
 
     // ----------------------------------------------------------
     // TOTAL FLASHCARD
@@ -2753,10 +2903,16 @@ class _ProgressPageState extends State<ProgressPage> {
         Sqflite.firstIntValue(
           await db.rawQuery(
             '''
-            SELECT COUNT(DISTINCT flashcard_id)
-            FROM log_belajar
-            WHERE pengguna_id = ?
-              AND status = ?
+            SELECT COUNT(*)
+            FROM log_belajar AS terbaru
+            INNER JOIN (
+              SELECT flashcard_id, MAX(id) AS log_id
+              FROM log_belajar
+              WHERE pengguna_id = ?
+              GROUP BY flashcard_id
+            ) AS terakhir
+              ON terakhir.log_id = terbaru.id
+            WHERE terbaru.status = ?
             ''',
             [DatabaseHelper.userId, 'Paham'],
           ),
@@ -2774,8 +2930,23 @@ class _ProgressPageState extends State<ProgressPage> {
         0;
 
     // ----------------------------------------------------------
-    // LATIHAN YANG SUDAH BENAR
+    // LATIHAN YANG PERNAH DIKERJAKAN
     // ----------------------------------------------------------
+
+    final latihanDikerjakan =
+        Sqflite.firstIntValue(
+          await db.rawQuery(
+            '''
+            SELECT COUNT(DISTINCT latihan_id)
+            FROM hasil_latihan
+            INNER JOIN latihan_kode
+              ON latihan_kode.id = hasil_latihan.latihan_id
+            WHERE hasil_latihan.pengguna_id = ?
+            ''',
+            [DatabaseHelper.userId],
+          ),
+        ) ??
+        0;
 
     final latihanBenar =
         Sqflite.firstIntValue(
@@ -2783,37 +2954,39 @@ class _ProgressPageState extends State<ProgressPage> {
             '''
             SELECT COUNT(DISTINCT latihan_id)
             FROM hasil_latihan
-            WHERE pengguna_id = ?
-              AND status = ?
+            INNER JOIN latihan_kode
+              ON latihan_kode.id = hasil_latihan.latihan_id
+            WHERE hasil_latihan.pengguna_id = ?
+              AND hasil_latihan.status = ?
             ''',
             [DatabaseHelper.userId, 'Benar'],
           ),
         ) ??
         0;
 
-    // ----------------------------------------------------------
-    // HITUNG TOTAL AKTIVITAS
-    // ----------------------------------------------------------
-
-    final totalAktivitas = totalFlashcard + totalLatihan;
-
-    // ----------------------------------------------------------
-    // HITUNG AKTIVITAS SELESAI
-    // ----------------------------------------------------------
-
-    final selesaiAktivitas = flashcardPaham + latihanBenar;
-
-    // ----------------------------------------------------------
-    // KEMBALIKAN DATA
-    // ----------------------------------------------------------
+    final latihanTerakhir = await db.query(
+      'hasil_latihan',
+      columns: ['status', 'tanggal'],
+      where: 'pengguna_id = ?',
+      whereArgs: [DatabaseHelper.userId],
+      orderBy: 'id DESC',
+      limit: 1,
+    );
 
     return {
+      'totalMateri': totalMateri,
+      'materiSelesai': materiSelesai,
       'totalFlashcard': totalFlashcard,
       'flashcardPaham': flashcardPaham,
       'totalLatihan': totalLatihan,
+      'latihanDikerjakan': latihanDikerjakan,
       'latihanBenar': latihanBenar,
-      'totalAktivitas': totalAktivitas,
-      'selesaiAktivitas': selesaiAktivitas,
+      'nilaiLatihanTerakhir': latihanTerakhir.isEmpty
+          ? null
+          : latihanTerakhir.first['status'],
+      'waktuLatihanTerakhir': latihanTerakhir.isEmpty
+          ? null
+          : latihanTerakhir.first['tanggal'],
     };
   }
 
@@ -2834,7 +3007,7 @@ class _ProgressPageState extends State<ProgressPage> {
         ON latihan_kode.id =
            hasil_latihan.latihan_id
       WHERE hasil_latihan.pengguna_id = ?
-      ORDER BY hasil_latihan.id DESC
+      ORDER BY hasil_latihan.tanggal DESC, hasil_latihan.id DESC
       LIMIT 10
       ''',
       [DatabaseHelper.userId],
@@ -2845,7 +3018,7 @@ class _ProgressPageState extends State<ProgressPage> {
   // FUNGSI REFRESH
   // ============================================================
 
-  Future<void> refreshData() async {
+  Future<void> refreshData({bool showMessage = true}) async {
     // Baca ulang data dari database
     final statistikBaru = ambilStatistik();
     final historyBaru = ambilRiwayat();
@@ -2860,20 +3033,25 @@ class _ProgressPageState extends State<ProgressPage> {
     try {
       await _futureStatistik;
       await _futureHistory;
-    } catch (_) {
-      // Error akan ditampilkan oleh FutureBuilder
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal memperbarui Progress: $e')));
+      return;
     }
 
     // Pastikan halaman masih aktif
     if (!mounted) return;
 
-    // Berikan pemberitahuan bahwa refresh berhasil
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Progress berhasil diperbarui'),
-        duration: Duration(seconds: 1),
-      ),
-    );
+    if (showMessage) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Progress berhasil diperbarui'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+    }
   }
 
   // ============================================================
@@ -2905,7 +3083,7 @@ class _ProgressPageState extends State<ProgressPage> {
       // ========================================================
       // BODY
       // ========================================================
-      body: FutureBuilder<Map<String, int>>(
+      body: FutureBuilder<Map<String, Object?>>(
         future: _futureStatistik,
 
         builder: (context, snapshot) {
@@ -2938,19 +3116,16 @@ class _ProgressPageState extends State<ProgressPage> {
           // DATA
           // ----------------------------------------------------
 
-          final data = snapshot.data ?? {};
-
-          final totalAktivitas = data['totalAktivitas'] ?? 0;
-
-          final selesaiAktivitas = data['selesaiAktivitas'] ?? 0;
-
-          // ----------------------------------------------------
-          // HITUNG PERSENTASE PROGRESS
-          // ----------------------------------------------------
-
-          final progress = totalAktivitas == 0
+          final data = snapshot.data ?? <String, Object?>{};
+          final totalMateri = data['totalMateri'] as int? ?? 0;
+          final materiSelesai = data['materiSelesai'] as int? ?? 0;
+          final totalLatihan = data['totalLatihan'] as int? ?? 0;
+          final latihanDikerjakan = data['latihanDikerjakan'] as int? ?? 0;
+          final nilaiTerakhir = data['nilaiLatihanTerakhir'] as String?;
+          final waktuTerakhir = data['waktuLatihanTerakhir'] as String?;
+          final progress = totalMateri == 0
               ? 0.0
-              : (selesaiAktivitas / totalAktivitas).clamp(0.0, 1.0).toDouble();
+              : (materiSelesai / totalMateri).clamp(0.0, 1.0).toDouble();
 
           // ----------------------------------------------------
           // REFRESH INDICATOR
@@ -3010,7 +3185,7 @@ class _ProgressPageState extends State<ProgressPage> {
 
                       children: [
                         const Text(
-                          'Progress Belajar',
+                          'Materi Selesai',
 
                           style: TextStyle(
                             fontSize: 20,
@@ -3038,8 +3213,7 @@ class _ProgressPageState extends State<ProgressPage> {
                         // JUMLAH SELESAI
                         // ------------------------------------------
                         Text(
-                          '$selesaiAktivitas dari '
-                          '$totalAktivitas aktivitas selesai',
+                          '$materiSelesai dari $totalMateri materi',
 
                           style: TextStyle(
                             color: Theme.of(context)
@@ -3047,6 +3221,44 @@ class _ProgressPageState extends State<ProgressPage> {
                                 .onSurfaceVariant,
                           ),
                         ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Latihan',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '$latihanDikerjakan dari $totalLatihan latihan pernah dikerjakan',
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Nilai latihan terakhir: '
+                          '${nilaiTerakhir ?? 'Belum ada nilai'}',
+                        ),
+                        if (waktuTerakhir != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Waktu: ${formatTanggal(waktuTerakhir)}',
+                            style: TextStyle(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -3170,7 +3382,11 @@ class _ProgressPageState extends State<ProgressPage> {
                             // ----------------------------------------
                             // INSTRUKSI
                             // ----------------------------------------
-                            subtitle: Text('${data['instruksi']}'),
+                            subtitle: Text(
+                              '${data['instruksi']}\n'
+                              '${formatTanggal(data['tanggal'])}',
+                            ),
+                            isThreeLine: true,
                           ),
                         );
                       }).toList(),
@@ -3221,6 +3437,17 @@ class _ProgressPageState extends State<ProgressPage> {
         ),
       ),
     );
+  }
+
+  String formatTanggal(Object? value) {
+    if (value is! String) return 'Waktu tidak tersedia';
+    final tanggal = DateTime.tryParse(value)?.toLocal();
+    if (tanggal == null) return value;
+
+    String duaDigit(int angka) => angka.toString().padLeft(2, '0');
+
+    return '${duaDigit(tanggal.day)}/${duaDigit(tanggal.month)}/'
+        '${tanggal.year} ${duaDigit(tanggal.hour)}:${duaDigit(tanggal.minute)}';
   }
 }
 
