@@ -704,6 +704,40 @@ class DatabaseHelper {
     return hasil.first;
   }
 
+  Future<Map<String, Object?>?> getPenggunaAktif() async {
+    if (userId == 0) return null;
+
+    final hasil = await database.query(
+      'pengguna',
+      columns: ['id', 'nama', 'username'],
+      where: 'id = ?',
+      whereArgs: [userId],
+      limit: 1,
+    );
+
+    if (hasil.isEmpty) return null;
+    return hasil.first;
+  }
+
+  Future<void> updateNamaPengguna({required String nama}) async {
+    final namaBersih = nama.trim();
+
+    if (userId == 0) {
+      throw StateError('Tidak ada pengguna yang sedang login.');
+    }
+
+    if (namaBersih.isEmpty) {
+      throw ArgumentError('Nama tidak boleh kosong.');
+    }
+
+    await database.update(
+      'pengguna',
+      {'nama': namaBersih},
+      where: 'id = ?',
+      whereArgs: [userId],
+    );
+  }
+
   Future<void> logout() async {
     await database.delete('sesi_login', where: 'id = ?', whereArgs: [1]);
 
@@ -1152,6 +1186,13 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   int halaman = 0;
+  late String nama;
+
+  @override
+  void initState() {
+    super.initState();
+    nama = widget.nama;
+  }
 
   Future<void> keluar() async {
     final konfirmasi = await showDialog<bool>(
@@ -1192,11 +1233,23 @@ class _DashboardPageState extends State<DashboardPage> {
   Widget build(BuildContext context) {
     final pages = [
       DashboardHome(
-        nama: widget.nama,
+        nama: nama,
         onOpen: (index) {
           setState(() {
             halaman = index;
           });
+        },
+        onOpenProfile: () async {
+          final hasil = await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ProfilePage()),
+          );
+
+          if (hasil is String && hasil.trim().isNotEmpty) {
+            setState(() {
+              nama = hasil.trim();
+            });
+          }
         },
       ),
       const ChapterPage(mode: 'materi'),
@@ -1212,6 +1265,22 @@ class _DashboardPageState extends State<DashboardPage> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
+          IconButton(
+            tooltip: 'Profil',
+            onPressed: () async {
+              final hasil = await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfilePage()),
+              );
+
+              if (hasil is String && hasil.trim().isNotEmpty) {
+                setState(() {
+                  nama = hasil.trim();
+                });
+              }
+            },
+            icon: const Icon(Icons.person),
+          ),
           IconButton(
             tooltip: 'Statistik',
             onPressed: () {
@@ -1278,8 +1347,14 @@ class _DashboardPageState extends State<DashboardPage> {
 class DashboardHome extends StatelessWidget {
   final String nama;
   final ValueChanged<int> onOpen;
+  final VoidCallback onOpenProfile;
 
-  const DashboardHome({super.key, required this.nama, required this.onOpen});
+  const DashboardHome({
+    super.key,
+    required this.nama,
+    required this.onOpen,
+    required this.onOpenProfile,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1292,6 +1367,15 @@ class DashboardHome extends StatelessWidget {
         ),
         const SizedBox(height: 5),
         const Text('Selamat belajar C++ hari ini!'),
+        const SizedBox(height: 20),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: onOpenProfile,
+            icon: const Icon(Icons.person_outline),
+            label: const Text('Profil Saya'),
+          ),
+        ),
         const SizedBox(height: 25),
         const Text(
           'Daftar Bab',
@@ -2128,6 +2212,211 @@ class _LatihanPageState extends State<LatihanPage> {
             OutlinedButton(
               onPressed: latihanBerikutnya,
               child: const Text('Latihan Berikutnya'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================
+// PROFIL PENGGUNA
+// ============================================================
+
+class ProfilePage extends StatefulWidget {
+  const ProfilePage({super.key});
+
+  @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  final TextEditingController namaController = TextEditingController();
+  bool loading = true;
+  bool sedangMenyimpan = false;
+  bool modeEdit = false;
+  String? username;
+  String? namaSaatIni;
+
+  @override
+  void initState() {
+    super.initState();
+    _muatProfil();
+  }
+
+  @override
+  void dispose() {
+    namaController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _muatProfil() async {
+    try {
+      final data = await DatabaseHelper.instance.getPenggunaAktif();
+      if (!mounted) return;
+
+      final nama = data?['nama'] as String? ?? '';
+      final user = data?['username'] as String? ?? '-';
+
+      setState(() {
+        loading = false;
+        username = user;
+        namaSaatIni = nama;
+        namaController.text = nama;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        loading = false;
+        username = '-';
+        namaSaatIni = '';
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal memuat profil: $e')),
+      );
+    }
+  }
+
+  Future<void> _simpanProfil() async {
+    final namaBaru = namaController.text.trim();
+
+    if (namaBaru.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nama tampilan tidak boleh kosong.')),
+      );
+      return;
+    }
+
+    setState(() => sedangMenyimpan = true);
+
+    try {
+      await DatabaseHelper.instance.updateNamaPengguna(nama: namaBaru);
+
+      if (!mounted) return;
+
+      final namaTersimpan = namaBaru;
+      setState(() {
+        namaSaatIni = namaTersimpan;
+        modeEdit = false;
+      });
+
+      Navigator.pop(context, namaTersimpan);
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => sedangMenyimpan = false);
+      }
+    }
+  }
+
+  void _batalEdit() {
+    setState(() {
+      modeEdit = false;
+      namaController.text = namaSaatIni ?? '';
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Profil')),
+      body: ListView(
+        padding: const EdgeInsets.all(22),
+        children: [
+          const Text(
+            'Profil Pengguna',
+            style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 24),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Nama tampilan',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  if (modeEdit)
+                    TextField(
+                      controller: namaController,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        hintText: 'Masukkan nama tampilan',
+                      ),
+                    )
+                  else
+                    Text(
+                      namaSaatIni?.isNotEmpty == true ? namaSaatIni! : 'Belum ada nama',
+                      style: const TextStyle(fontSize: 20),
+                    ),
+                  const SizedBox(height: 22),
+                  const Text(
+                    'Username',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    username ?? '-',
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Password tidak ditampilkan untuk keamanan.',
+                    style: TextStyle(
+                      color: Colors.grey.shade700,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          if (!modeEdit)
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: () => setState(() => modeEdit = true),
+                icon: const Icon(Icons.edit),
+                label: const Text('Edit'),
+              ),
+            )
+          else ...[
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: sedangMenyimpan ? null : _simpanProfil,
+                    icon: const Icon(Icons.save),
+                    label: Text(sedangMenyimpan ? 'Menyimpan...' : 'Simpan'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: sedangMenyimpan ? null : _batalEdit,
+                    icon: const Icon(Icons.cancel),
+                    label: const Text('Batal'),
+                  ),
+                ),
+              ],
             ),
           ],
         ],
