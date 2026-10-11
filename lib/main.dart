@@ -1930,7 +1930,7 @@ class _LatihanPageState extends State<LatihanPage> {
 
   @override
   void dispose() {
-    kodeController.dispose();
+    codeController.dispose();
     super.dispose();
   }
 
@@ -1947,10 +1947,6 @@ class _LatihanPageState extends State<LatihanPage> {
       setState(() {
         latihan = result;
         loading = false;
-
-        if (result.isNotEmpty) {
-          kodeController.text = '${result.first['template']}';
-        }
       });
     } catch (e) {
       if (!mounted) return;
@@ -1971,20 +1967,31 @@ class _LatihanPageState extends State<LatihanPage> {
 
     final soal = latihan[index];
 
-    final input = normalisasiKode(kodeController.text);
+    final kode = codeController.text;
+    if (kode.trim().isEmpty) {
+      setState(() {
+        hasil = 'Editor masih kosong. Tulis kode terlebih dahulu sebelum menekan Run.';
+      });
+      return;
+    }
 
+    final input = normalisasiKode(kode);
     final jawaban = normalisasiKode('${soal['kunci']}');
 
     final benar = input == jawaban;
 
     final pesan = benar
-        ? 'BENAR\n\n${soal['output']}'
-        : 'BELUM BENAR\n\nPeriksa kembali kode yang kamu tulis.';
+        ? 'BENAR\n\nKriteria latihan terpenuhi.\n\n'
+              'Hasil panduan: ${soal['output']}\n\n'
+              'Kode diperiksa berdasarkan kunci latihan, bukan dijalankan.'
+        : 'BELUM BENAR\n\nPetunjuk: pastikan kode memenuhi instruksi '
+              'latihan dan perhatikan nama, nilai, serta struktur yang diminta. '
+              'Pemeriksaan mengabaikan perbedaan spasi dan baris baru.';
 
     try {
       await DatabaseHelper.instance.simpanHasilLatihan(
         latihanId: soal['id'] as int,
-        kode: kodeController.text,
+        kode: kode,
         benar: benar,
         keterangan: pesan,
       );
@@ -2005,12 +2012,19 @@ class _LatihanPageState extends State<LatihanPage> {
     });
   }
 
+  void resetEditor() {
+    setState(() {
+      codeController.clear();
+      hasil = '';
+    });
+  }
+
   void latihanBerikutnya() {
     if (index >= latihan.length - 1) return;
 
     setState(() {
       index++;
-      kodeController.text = '${latihan[index]['template']}';
+      codeController.clear();
       hasil = '';
     });
   }
@@ -2060,7 +2074,7 @@ class _LatihanPageState extends State<LatihanPage> {
           CodeBox(text: '${soal['contoh']}'),
           const SizedBox(height: 15),
           TextField(
-            controller: kodeController,
+            controller: codeController,
             maxLines: 8,
             style: const TextStyle(fontFamily: 'monospace'),
             decoration: const InputDecoration(
@@ -2070,30 +2084,45 @@ class _LatihanPageState extends State<LatihanPage> {
             ),
           ),
           const SizedBox(height: 15),
-          SizedBox(
-            height: 52,
-            child: FilledButton.icon(
-              onPressed: runCode,
-              icon: const Icon(Icons.play_arrow),
-              label: const Text('RUN'),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 52,
+                  child: FilledButton.icon(
+                    onPressed: runCode,
+                    icon: const Icon(Icons.play_arrow),
+                    label: const Text('Run'),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              OutlinedButton.icon(
+                onPressed: resetEditor,
+                icon: const Icon(Icons.restart_alt),
+                label: const Text('Reset'),
+                style: OutlinedButton.styleFrom(minimumSize: const Size(0, 52)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          const Text('Output', style: TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: hasil.isEmpty
+                  ? Colors.blueGrey.shade50
+                  : hasil.startsWith('BENAR\n')
+                  ? Colors.green.shade50
+                  : Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              hasil.isEmpty ? 'Hasil pemeriksaan akan tampil di sini.' : hasil,
+              style: const TextStyle(fontWeight: FontWeight.w500),
             ),
           ),
-          if (hasil.isNotEmpty) ...[
-            const SizedBox(height: 15),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: hasil.startsWith('BENAR')
-                    ? Colors.green.shade50
-                    : Colors.red.shade50,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                hasil,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
           if (index < latihan.length - 1) ...[
             const SizedBox(height: 15),
             OutlinedButton(
