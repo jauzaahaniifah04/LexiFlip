@@ -9,13 +9,15 @@ import 'package:sqflite/sqflite.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  final appSettings = AppSettingsController();
   try {
     await DatabaseHelper.instance.initDatabase();
+    await appSettings.load();
   } catch (e) {
-    debugPrint('Gagal menginisialisasi database: $e');
+    debugPrint('Gagal menginisialisasi database atau preferensi: $e');
   }
 
-  runApp(const LexiFlipApp());
+  runApp(LexiFlipApp(settings: appSettings));
 }
 
 // ============================================================
@@ -39,7 +41,7 @@ class DatabaseHelper {
 
     _database = await openDatabase(
       databasePath,
-      version: 3,
+      version: 4,
       onCreate: (db, version) async {
         await _createTables(db);
         await _seedDatabase(db);
@@ -48,8 +50,20 @@ class DatabaseHelper {
         if (oldVersion < 3) {
           await _ensureAuthSchema(db);
         }
+        if (oldVersion < 4) {
+          await _createAppPreferencesTable(db);
+        }
       },
     );
+  }
+
+  Future<void> _createAppPreferencesTable(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS preferensi_aplikasi (
+        kunci TEXT PRIMARY KEY,
+        nilai TEXT NOT NULL
+      )
+    ''');
   }
 
   Future<void> _ensureAuthSchema(Database db) async {
@@ -97,6 +111,7 @@ class DatabaseHelper {
 
   Future<void> _createTables(Database db) async {
     await _ensureAuthSchema(db);
+    await _createAppPreferencesTable(db);
 
     await db.execute('''
       CREATE TABLE bab (
@@ -160,6 +175,23 @@ class DatabaseHelper {
         tanggal TEXT NOT NULL
       )
     ''');
+  }
+
+  Future<Map<String, String>> getAppPreferences() async {
+    final rows = await database.query('preferensi_aplikasi');
+    return {
+      for (final row in rows) row['kunci'] as String: row['nilai'] as String,
+    };
+  }
+
+  Future<void> saveAppPreference({
+    required String key,
+    required String value,
+  }) async {
+    await database.insert('preferensi_aplikasi', {
+      'kunci': key,
+      'nilai': value,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
   Future<void> _seedDatabase(Database db) async {
@@ -777,20 +809,202 @@ class DatabaseHelper {
 // APP
 // ============================================================
 
+enum TextSizeOption { small, medium, large }
+
+class AppSettingsController extends ChangeNotifier {
+  ThemeMode themeMode = ThemeMode.light;
+  TextSizeOption textSize = TextSizeOption.medium;
+
+  double get textScale => switch (textSize) {
+    TextSizeOption.small => 0.9,
+    TextSizeOption.medium => 1,
+    TextSizeOption.large => 1.15,
+  };
+
+  Future<void> load() async {
+    final preferences = await DatabaseHelper.instance.getAppPreferences();
+    themeMode = switch (preferences['theme_mode']) {
+      'dark' => ThemeMode.dark,
+      _ => ThemeMode.light,
+    };
+    textSize = switch (preferences['text_size']) {
+      'small' => TextSizeOption.small,
+      'large' => TextSizeOption.large,
+      _ => TextSizeOption.medium,
+    };
+  }
+
+  Future<void> setThemeMode(ThemeMode value) async {
+    await DatabaseHelper.instance.saveAppPreference(
+      key: 'theme_mode',
+      value: value == ThemeMode.dark ? 'dark' : 'light',
+    );
+    themeMode = value;
+    notifyListeners();
+  }
+
+  Future<void> setTextSize(TextSizeOption value) async {
+    await DatabaseHelper.instance.saveAppPreference(
+      key: 'text_size',
+      value: value.name,
+    );
+    textSize = value;
+    notifyListeners();
+  }
+}
+
 class LexiFlipApp extends StatelessWidget {
-  const LexiFlipApp({super.key});
+  final AppSettingsController settings;
+
+  const LexiFlipApp({super.key, required this.settings});
+
+  ThemeData _buildTheme(Brightness brightness) {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: Colors.indigo,
+      brightness: brightness,
+    );
+
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: colorScheme,
+      scaffoldBackgroundColor: brightness == Brightness.light
+          ? const Color(0xffF6F7FB)
+          : colorScheme.surface,
+      appBarTheme: AppBarTheme(
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: colorScheme.surface,
+        border: const OutlineInputBorder(),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'LexiFlip',
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: Colors.indigo,
-        scaffoldBackgroundColor: const Color(0xffF6F7FB),
+    return AnimatedBuilder(
+      animation: settings,
+      builder: (context, _) => MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'LexiFlip',
+        theme: _buildTheme(Brightness.light),
+        darkTheme: _buildTheme(Brightness.dark),
+        themeMode: settings.themeMode,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: TextScaler.linear(settings.textScale)),
+          child: child!,
+        ),
+        home: StartPage(settings: settings),
       ),
-      home: const StartPage(),
+    );
+  }
+}
+
+class SettingsPage extends StatelessWidget {
+  final AppSettingsController settings;
+
+  const SettingsPage({super.key, required this.settings});
+
+  Future<void> _changeTheme(BuildContext context, ThemeMode mode) async {
+    try {
+      await settings.setThemeMode(mode);
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Gagal menyimpan tema: $e')));
+    }
+  }
+
+  Future<void> _changeTextSize(
+    BuildContext context,
+    TextSizeOption size,
+  ) async {
+    try {
+      await settings.setTextSize(size);
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal menyimpan ukuran teks: $e')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: settings,
+      builder: (context, _) => Scaffold(
+        appBar: AppBar(title: const Text('Pengaturan')),
+        body: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            Text('Tampilan', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 12),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Tema',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 12),
+                    SegmentedButton<ThemeMode>(
+                      segments: const [
+                        ButtonSegment(
+                          value: ThemeMode.light,
+                          label: Text('Terang'),
+                          icon: Icon(Icons.light_mode_outlined),
+                        ),
+                        ButtonSegment(
+                          value: ThemeMode.dark,
+                          label: Text('Gelap'),
+                          icon: Icon(Icons.dark_mode_outlined),
+                        ),
+                      ],
+                      selected: {settings.themeMode},
+                      onSelectionChanged: (selection) {
+                        _changeTheme(context, selection.first);
+                      },
+                    ),
+                    const SizedBox(height: 24),
+                    Text(
+                      'Ukuran teks',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 12),
+                    SegmentedButton<TextSizeOption>(
+                      segments: const [
+                        ButtonSegment(
+                          value: TextSizeOption.small,
+                          label: Text('Kecil'),
+                        ),
+                        ButtonSegment(
+                          value: TextSizeOption.medium,
+                          label: Text('Sedang'),
+                        ),
+                        ButtonSegment(
+                          value: TextSizeOption.large,
+                          label: Text('Besar'),
+                        ),
+                      ],
+                      selected: {settings.textSize},
+                      onSelectionChanged: (selection) {
+                        _changeTextSize(context, selection.first);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -800,7 +1014,9 @@ class LexiFlipApp extends StatelessWidget {
 // ============================================================
 
 class StartPage extends StatelessWidget {
-  const StartPage({super.key});
+  final AppSettingsController settings;
+
+  const StartPage({super.key, required this.settings});
 
   @override
   Widget build(BuildContext context) {
@@ -824,20 +1040,27 @@ class StartPage extends StatelessWidget {
         final akun = snapshot.data;
 
         if (akun != null) {
-          return DashboardPage(nama: akun['nama'] as String? ?? '');
+          return DashboardPage(
+            nama: akun['nama'] as String? ?? '',
+            settings: settings,
+          );
         }
 
-        return const WelcomePage();
+        return WelcomePage(settings: settings);
       },
     );
   }
 }
 
 class WelcomePage extends StatelessWidget {
-  const WelcomePage({super.key});
+  final AppSettingsController? settings;
+
+  const WelcomePage({super.key, this.settings});
 
   @override
   Widget build(BuildContext context) {
+    final appSettings = settings ?? AppSettingsController();
+
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -846,7 +1069,26 @@ class WelcomePage extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.style_rounded, size: 90, color: Colors.indigo),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: IconButton(
+                    tooltip: 'Pengaturan',
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SettingsPage(settings: appSettings),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.settings_outlined),
+                  ),
+                ),
+                Icon(
+                  Icons.style_rounded,
+                  size: 90,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
                 const SizedBox(height: 16),
                 const Text(
                   'LexiFlip',
@@ -867,7 +1109,7 @@ class WelcomePage extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const DaftarAkunPage(),
+                          builder: (_) => DaftarAkunPage(settings: appSettings),
                         ),
                       );
                     },
@@ -884,7 +1126,9 @@ class WelcomePage extends StatelessWidget {
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (_) => const LoginPage()),
+                        MaterialPageRoute(
+                          builder: (_) => LoginPage(settings: appSettings),
+                        ),
                       );
                     },
                     icon: const Icon(Icons.login),
@@ -905,7 +1149,9 @@ class WelcomePage extends StatelessWidget {
 // ============================================================
 
 class DaftarAkunPage extends StatefulWidget {
-  const DaftarAkunPage({super.key});
+  final AppSettingsController settings;
+
+  const DaftarAkunPage({super.key, required this.settings});
 
   @override
   State<DaftarAkunPage> createState() => _DaftarAkunPageState();
@@ -969,7 +1215,9 @@ class _DaftarAkunPageState extends State<DaftarAkunPage> {
 
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) => DashboardPage(nama: nama)),
+        MaterialPageRoute(
+          builder: (_) => DashboardPage(nama: nama, settings: widget.settings),
+        ),
         (route) => false,
       );
     } catch (e) {
@@ -1061,7 +1309,9 @@ class _DaftarAkunPageState extends State<DaftarAkunPage> {
 // ============================================================
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key});
+  final AppSettingsController settings;
+
+  const LoginPage({super.key, required this.settings});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -1112,7 +1362,9 @@ class _LoginPageState extends State<LoginPage> {
 
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (_) => DashboardPage(nama: nama)),
+        MaterialPageRoute(
+          builder: (_) => DashboardPage(nama: nama, settings: widget.settings),
+        ),
         (route) => false,
       );
     } catch (e) {
@@ -1177,8 +1429,9 @@ class _LoginPageState extends State<LoginPage> {
 
 class DashboardPage extends StatefulWidget {
   final String nama;
+  final AppSettingsController settings;
 
-  const DashboardPage({super.key, required this.nama});
+  const DashboardPage({super.key, required this.nama, required this.settings});
 
   @override
   State<DashboardPage> createState() => _DashboardPageState();
@@ -1224,7 +1477,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(builder: (_) => const StartPage()),
+      MaterialPageRoute(builder: (_) => StartPage(settings: widget.settings)),
       (route) => false,
     );
   }
@@ -1265,6 +1518,18 @@ class _DashboardPageState extends State<DashboardPage> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
+          IconButton(
+            tooltip: 'Pengaturan',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => SettingsPage(settings: widget.settings),
+                ),
+              );
+            },
+            icon: const Icon(Icons.settings_outlined),
+          ),
           IconButton(
             tooltip: 'Profil',
             onPressed: () async {
@@ -1806,6 +2071,8 @@ class _FlashcardPageState extends State<FlashcardPage> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     if (loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
@@ -1851,7 +2118,9 @@ class _FlashcardPageState extends State<FlashcardPage> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(25),
                     decoration: BoxDecoration(
-                      color: dibalik ? Colors.indigo.shade50 : Colors.white,
+                      color: dibalik
+                          ? colorScheme.secondaryContainer
+                          : colorScheme.surfaceContainerLow,
                       borderRadius: BorderRadius.circular(25),
                       boxShadow: const [
                         BoxShadow(blurRadius: 12, color: Color(0x22000000)),
@@ -1865,7 +2134,7 @@ class _FlashcardPageState extends State<FlashcardPage> {
                             Icon(
                               dibalik ? Icons.lightbulb : Icons.help_outline,
                               size: 55,
-                              color: Colors.indigo,
+                              color: colorScheme.primary,
                             ),
                             const SizedBox(height: 20),
                             Text(
@@ -1887,7 +2156,9 @@ class _FlashcardPageState extends State<FlashcardPage> {
                               dibalik
                                   ? 'Ketuk untuk kembali'
                                   : 'Ketuk kartu untuk FLIP',
-                              style: const TextStyle(color: Colors.grey),
+                              style: TextStyle(
+                                color: colorScheme.onSurfaceVariant,
+                              ),
                             ),
                           ],
                         ),
@@ -2115,6 +2386,8 @@ class _LatihanPageState extends State<LatihanPage> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     if (loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
@@ -2196,15 +2469,20 @@ class _LatihanPageState extends State<LatihanPage> {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: hasil.isEmpty
-                  ? Colors.blueGrey.shade50
+                  ? colorScheme.surfaceContainerLow
                   : hasil.startsWith('BENAR\n')
-                  ? Colors.green.shade50
-                  : Colors.orange.shade50,
+                  ? colorScheme.secondaryContainer
+                  : colorScheme.errorContainer,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
               hasil.isEmpty ? 'Hasil pemeriksaan akan tampil di sini.' : hasil,
-              style: const TextStyle(fontWeight: FontWeight.w500),
+              style: TextStyle(
+                fontWeight: FontWeight.w500,
+                color: hasil.startsWith('BELUM BENAR')
+                    ? colorScheme.onErrorContainer
+                    : colorScheme.onSurface,
+              ),
             ),
           ),
           if (index < latihan.length - 1) ...[
@@ -2274,9 +2552,8 @@ class _ProfilePageState extends State<ProfilePage> {
         namaSaatIni = '';
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal memuat profil: $e')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Gagal memuat profil: $e')));
     }
   }
 
@@ -2327,9 +2604,7 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     if (loading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return Scaffold(
@@ -2363,7 +2638,9 @@ class _ProfilePageState extends State<ProfilePage> {
                     )
                   else
                     Text(
-                      namaSaatIni?.isNotEmpty == true ? namaSaatIni! : 'Belum ada nama',
+                      namaSaatIni?.isNotEmpty == true
+                          ? namaSaatIni!
+                          : 'Belum ada nama',
                       style: const TextStyle(fontSize: 20),
                     ),
                   const SizedBox(height: 22),
@@ -2372,15 +2649,12 @@ class _ProfilePageState extends State<ProfilePage> {
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    username ?? '-',
-                    style: const TextStyle(fontSize: 16),
-                  ),
+                  Text(username ?? '-', style: const TextStyle(fontSize: 16)),
                   const SizedBox(height: 8),
                   Text(
                     'Password tidak ditampilkan untuk keamanan.',
                     style: TextStyle(
-                      color: Colors.grey.shade700,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontStyle: FontStyle.italic,
                     ),
                   ),
@@ -2767,7 +3041,11 @@ class _ProgressPageState extends State<ProgressPage> {
                           '$selesaiAktivitas dari '
                           '$totalAktivitas aktivitas selesai',
 
-                          style: TextStyle(color: Colors.grey[700]),
+                          style: TextStyle(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),
@@ -2879,7 +3157,9 @@ class _ProgressPageState extends State<ProgressPage> {
                             leading: Icon(
                               benar ? Icons.check_circle : Icons.error,
 
-                              color: benar ? Colors.green : Colors.red,
+                              color: benar
+                                  ? Theme.of(context).colorScheme.tertiary
+                                  : Theme.of(context).colorScheme.error,
                             ),
 
                             // ----------------------------------------
@@ -2920,7 +3200,7 @@ class _ProgressPageState extends State<ProgressPage> {
             // ICON
             // ----------------------------------------------------
 
-            Icon(icon, size: 35, color: Colors.indigo),
+            Icon(icon, size: 35, color: Theme.of(context).colorScheme.primary),
 
             const SizedBox(height: 5),
 
