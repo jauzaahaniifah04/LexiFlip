@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -12,14 +13,21 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   final appSettings = AppSettingsController();
+  Object? initializationError;
   try {
     await DatabaseHelper.instance.initDatabase();
     await appSettings.load();
   } catch (e) {
     debugPrint('Gagal menginisialisasi database atau preferensi: $e');
+    initializationError = e;
   }
 
-  runApp(LexiFlipApp(settings: appSettings));
+  runApp(
+    LexiFlipApp(
+      settings: appSettings,
+      initializationError: initializationError,
+    ),
+  );
 }
 
 // ============================================================
@@ -881,6 +889,7 @@ class AppSettingsController extends ChangeNotifier {
       'large' => TextSizeOption.large,
       _ => TextSizeOption.medium,
     };
+    notifyListeners();
   }
 
   Future<void> setThemeMode(ThemeMode value) async {
@@ -904,8 +913,13 @@ class AppSettingsController extends ChangeNotifier {
 
 class LexiFlipApp extends StatelessWidget {
   final AppSettingsController settings;
+  final Object? initializationError;
 
-  const LexiFlipApp({super.key, required this.settings});
+  const LexiFlipApp({
+    super.key,
+    required this.settings,
+    this.initializationError,
+  });
 
   ThemeData _buildTheme(Brightness brightness) {
     final colorScheme = ColorScheme.fromSeed(
@@ -946,7 +960,98 @@ class LexiFlipApp extends StatelessWidget {
               .copyWith(textScaler: TextScaler.linear(settings.textScale)),
           child: child!,
         ),
-        home: StartPage(settings: settings),
+        home: initializationError == null
+            ? StartPage(settings: settings)
+            : StartupErrorPage(settings: settings, error: initializationError!),
+      ),
+    );
+  }
+}
+
+class StartupErrorPage extends StatefulWidget {
+  final AppSettingsController settings;
+  final Object error;
+
+  const StartupErrorPage({
+    super.key,
+    required this.settings,
+    required this.error,
+  });
+
+  @override
+  State<StartupErrorPage> createState() => _StartupErrorPageState();
+}
+
+class _StartupErrorPageState extends State<StartupErrorPage> {
+  late Object error = widget.error;
+  bool retrying = false;
+
+  Future<void> retryInitialization() async {
+    setState(() => retrying = true);
+
+    try {
+      await DatabaseHelper.instance.initDatabase();
+      await widget.settings.load();
+
+      if (!mounted) return;
+
+      unawaited(
+        Navigator.pushReplacement<void, void>(
+          context,
+          MaterialPageRoute<void>(
+            builder: (_) => StartPage(settings: widget.settings),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => error = e);
+    } finally {
+      if (mounted) setState(() => retrying = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  size: 56,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'LexiFlip belum dapat dimulai.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Database atau pengaturan aplikasi gagal dimuat.\n$error',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                FilledButton(
+                  onPressed: retrying ? null : retryInitialization,
+                  child: retrying
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Coba lagi'),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1520,7 +1625,14 @@ class _DashboardPageState extends State<DashboardPage> {
     if (konfirmasi != true || !mounted) return;
 
     // Hapus sesi, tetapi akun dan progres tidak dihapus.
-    await DatabaseHelper.instance.logout();
+    try {
+      await DatabaseHelper.instance.logout();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Gagal keluar: $e')));
+      return;
+    }
 
     if (!mounted) return;
 
