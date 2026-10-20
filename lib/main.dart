@@ -6,6 +6,8 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
 
+import 'code_auto_indent_formatter.dart';
+import 'code_evaluator.dart';
 import 'database/database_platform.dart';
 
 final ValueNotifier<int> progressDataVersion = ValueNotifier<int>(0);
@@ -2623,10 +2625,6 @@ class _LatihanPageState extends State<LatihanPage> {
     }
   }
 
-  String normalisasiKode(String value) {
-    return value.trim().replaceAll(RegExp(r'\s+'), ' ');
-  }
-
   Future<void> runCode() async {
     if (latihan.isEmpty) return;
 
@@ -2640,18 +2638,14 @@ class _LatihanPageState extends State<LatihanPage> {
       return;
     }
 
-    final input = normalisasiKode(kode);
-    final jawaban = normalisasiKode('${soal['kunci']}');
-
-    final benar = input == jawaban;
+    final evaluation = evaluateCppAnswer(kode, '${soal['kunci']}');
+    final benar = evaluation.isCorrect;
 
     final pesan = benar
-        ? 'BENAR\n\nKriteria latihan terpenuhi.\n\n'
+        ? 'BENAR\n\n${evaluation.feedback}\n\n'
               'Hasil panduan: ${soal['output']}\n\n'
               'Kode diperiksa berdasarkan kunci latihan, bukan dijalankan.'
-        : 'BELUM BENAR\n\nPetunjuk: pastikan kode memenuhi instruksi '
-              'latihan dan perhatikan nama, nilai, serta struktur yang diminta. '
-              'Pemeriksaan mengabaikan perbedaan spasi dan baris baru.';
+        : 'BELUM BENAR\n\nPetunjuk: ${evaluation.feedback}';
 
     try {
       await DatabaseHelper.instance.simpanHasilLatihan(
@@ -2744,6 +2738,7 @@ class _LatihanPageState extends State<LatihanPage> {
           TextField(
             controller: codeController,
             maxLines: 8,
+            inputFormatters: [CodeAutoIndentFormatter()],
             style: const TextStyle(fontFamily: 'monospace'),
             decoration: const InputDecoration(
               labelText: 'Code Editor',
