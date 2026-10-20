@@ -4,8 +4,9 @@ import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
+
+import 'database/database_platform.dart';
 
 final ValueNotifier<int> progressDataVersion = ValueNotifier<int>(0);
 
@@ -17,9 +18,13 @@ Future<void> main() async {
   try {
     await DatabaseHelper.instance.initDatabase();
     await appSettings.load();
-  } catch (e) {
-    debugPrint('Gagal menginisialisasi database atau preferensi: $e');
-    initializationError = e;
+  } catch (error, stackTrace) {
+    _logDatabaseError(
+      'Gagal menginisialisasi database atau preferensi',
+      error,
+      stackTrace,
+    );
+    initializationError = error;
   }
 
   runApp(
@@ -30,24 +35,57 @@ Future<void> main() async {
   );
 }
 
+void _logDatabaseError(String operation, Object error, StackTrace stackTrace) {
+  debugPrint('$operation: $error\n$stackTrace');
+}
+
+Future<T> _withDatabaseErrorLogging<T>(
+  String operation,
+  Future<T> Function() run,
+) async {
+  try {
+    return await run();
+  } catch (error, stackTrace) {
+    _logDatabaseError(operation, error, stackTrace);
+    rethrow;
+  }
+}
+
 // ============================================================
 // DATABASE
 // ============================================================
 
 class DatabaseHelper {
-  DatabaseHelper._();
+  DatabaseHelper._() : _databasePathOverride = null;
+
+  @visibleForTesting
+  DatabaseHelper.forTesting(String databasePath)
+    : _databasePathOverride = databasePath;
 
   static final DatabaseHelper instance = DatabaseHelper._();
 
   static int userId = 0;
   static const String databaseName = 'lexiflip.db';
 
+  final String? _databasePathOverride;
+
   Database? _database;
+  Future<void>? _initialization;
 
-  Future<void> initDatabase() async {
-    if (_database != null) return;
+  Future<void> initDatabase() {
+    return _initialization ??= _openDatabase().catchError((
+      Object error,
+      StackTrace stackTrace,
+    ) {
+      _initialization = null;
+      Error.throwWithStackTrace(error, stackTrace);
+    });
+  }
 
-    final databasePath = p.join(await getDatabasesPath(), databaseName);
+  Future<void> _openDatabase() async {
+    await initializeDatabasePlatform();
+    final databasePath =
+        _databasePathOverride ?? await databasePathFor(databaseName);
 
     _database = await openDatabase(
       databasePath,
@@ -962,7 +1000,7 @@ class LexiFlipApp extends StatelessWidget {
         ),
         home: initializationError == null
             ? StartPage(settings: settings)
-            : StartupErrorPage(settings: settings, error: initializationError!),
+            : StartupErrorPage(settings: settings),
       ),
     );
   }
@@ -970,20 +1008,14 @@ class LexiFlipApp extends StatelessWidget {
 
 class StartupErrorPage extends StatefulWidget {
   final AppSettingsController settings;
-  final Object error;
 
-  const StartupErrorPage({
-    super.key,
-    required this.settings,
-    required this.error,
-  });
+  const StartupErrorPage({super.key, required this.settings});
 
   @override
   State<StartupErrorPage> createState() => _StartupErrorPageState();
 }
 
 class _StartupErrorPageState extends State<StartupErrorPage> {
-  late Object error = widget.error;
   bool retrying = false;
 
   Future<void> retryInitialization() async {
@@ -1003,9 +1035,13 @@ class _StartupErrorPageState extends State<StartupErrorPage> {
           ),
         ),
       );
-    } catch (e) {
+    } catch (error, stackTrace) {
+      _logDatabaseError(
+        'Gagal mengulangi inisialisasi database atau pengaturan',
+        error,
+        stackTrace,
+      );
       if (!mounted) return;
-      setState(() => error = e);
     } finally {
       if (mounted) setState(() => retrying = false);
     }
@@ -1033,8 +1069,9 @@ class _StartupErrorPageState extends State<StartupErrorPage> {
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  'Database atau pengaturan aplikasi gagal dimuat.\n$error',
+                const Text(
+                  'Database atau pengaturan aplikasi gagal dimuat. '
+                  'Periksa penyimpanan perangkat, lalu coba lagi.',
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 20),
@@ -1065,10 +1102,11 @@ class SettingsPage extends StatelessWidget {
   Future<void> _changeTheme(BuildContext context, ThemeMode mode) async {
     try {
       await settings.setThemeMode(mode);
-    } catch (e) {
+    } catch (error, stackTrace) {
+      _logDatabaseError('Gagal menyimpan tema', error, stackTrace);
       if (!context.mounted) return;
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Gagal menyimpan tema: $e')));
+          .showSnackBar(const SnackBar(content: Text('Gagal menyimpan tema.')));
     }
   }
 
@@ -1078,10 +1116,11 @@ class SettingsPage extends StatelessWidget {
   ) async {
     try {
       await settings.setTextSize(size);
-    } catch (e) {
+    } catch (error, stackTrace) {
+      _logDatabaseError('Gagal menyimpan ukuran teks', error, stackTrace);
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal menyimpan ukuran teks: $e')),
+        const SnackBar(content: Text('Gagal menyimpan ukuran teks.')),
       );
     }
   }
@@ -1167,15 +1206,26 @@ class SettingsPage extends StatelessWidget {
 // HALAMAN AWAL: DAFTAR ATAU LOGIN
 // ============================================================
 
-class StartPage extends StatelessWidget {
+class StartPage extends StatefulWidget {
   final AppSettingsController settings;
 
   const StartPage({super.key, required this.settings});
 
   @override
+  State<StartPage> createState() => _StartPageState();
+}
+
+class _StartPageState extends State<StartPage> {
+  late final Future<Map<String, Object?>?> _loginSession =
+      _withDatabaseErrorLogging(
+        'Gagal membaca sesi login',
+        DatabaseHelper.instance.cekSesiLogin,
+      );
+
+  @override
   Widget build(BuildContext context) {
     return FutureBuilder<Map<String, Object?>?>(
-      future: DatabaseHelper.instance.cekSesiLogin(),
+      future: _loginSession,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
           return const Scaffold(
@@ -1186,7 +1236,11 @@ class StartPage extends StatelessWidget {
         if (snapshot.hasError) {
           return Scaffold(
             body: Center(
-              child: Text('Gagal membuka database: ${snapshot.error}'),
+              child: Text(
+                'Sesi pengguna tidak dapat dimuat. '
+                'Periksa penyimpanan aplikasi dan coba lagi.',
+                textAlign: TextAlign.center,
+              ),
             ),
           );
         }
@@ -1196,11 +1250,11 @@ class StartPage extends StatelessWidget {
         if (akun != null) {
           return DashboardPage(
             nama: akun['nama'] as String? ?? '',
-            settings: settings,
+            settings: widget.settings,
           );
         }
 
-        return WelcomePage(settings: settings);
+        return WelcomePage(settings: widget.settings);
       },
     );
   }
@@ -1374,12 +1428,16 @@ class _DaftarAkunPageState extends State<DaftarAkunPage> {
         ),
         (route) => false,
       );
-    } catch (e) {
+    } catch (error, stackTrace) {
+      _logDatabaseError('Gagal membuat akun', error, stackTrace);
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
-      );
+      final message =
+          error.toString().contains('Nama pengguna sudah digunakan.')
+          ? 'Nama pengguna sudah digunakan.'
+          : 'Akun tidak dapat dibuat. Coba lagi.';
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) setState(() => loading = false);
     }
@@ -1521,11 +1579,13 @@ class _LoginPageState extends State<LoginPage> {
         ),
         (route) => false,
       );
-    } catch (e) {
+    } catch (error, stackTrace) {
+      _logDatabaseError('Gagal login', error, stackTrace);
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Login gagal: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Login tidak dapat diproses.')),
+      );
     } finally {
       if (mounted) setState(() => loading = false);
     }
@@ -1627,10 +1687,12 @@ class _DashboardPageState extends State<DashboardPage> {
     // Hapus sesi, tetapi akun dan progres tidak dihapus.
     try {
       await DatabaseHelper.instance.logout();
-    } catch (e) {
+    } catch (error, stackTrace) {
+      _logDatabaseError('Gagal keluar dari akun', error, stackTrace);
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Gagal keluar: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Gagal keluar dari akun.')));
       return;
     }
 
@@ -1809,9 +1871,12 @@ class DashboardHome extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         FutureBuilder<List<Map<String, Object?>>>(
-          future: DatabaseHelper.instance.database.query(
-            'bab',
-            orderBy: 'urutan ASC',
+          future: _withDatabaseErrorLogging(
+            'Gagal memuat bab di dashboard',
+            () => DatabaseHelper.instance.database.query(
+              'bab',
+              orderBy: 'urutan ASC',
+            ),
           ),
           builder: (context, snapshot) {
             if (snapshot.connectionState != ConnectionState.done) {
@@ -1823,7 +1888,8 @@ class DashboardHome extends StatelessWidget {
 
             if (snapshot.hasError) {
               return _MessageCard(
-                message: 'Gagal memuat bab: ${snapshot.error}',
+                message:
+                    'Bab tidak dapat dimuat. Coba buka kembali halaman ini.',
               );
             }
 
@@ -1909,9 +1975,12 @@ class ChapterPage extends StatelessWidget {
     }
 
     return FutureBuilder<List<Map<String, Object?>>>(
-      future: DatabaseHelper.instance.database.query(
-        'bab',
-        orderBy: 'urutan ASC',
+      future: _withDatabaseErrorLogging(
+        'Gagal memuat daftar bab',
+        () => DatabaseHelper.instance.database.query(
+          'bab',
+          orderBy: 'urutan ASC',
+        ),
       ),
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
@@ -1921,7 +1990,7 @@ class ChapterPage extends StatelessWidget {
         if (snapshot.hasError) {
           return Center(
             child: Text(
-              'Gagal memuat bab:\n${snapshot.error}',
+              'Daftar bab tidak dapat dimuat. Coba buka kembali halaman ini.',
               textAlign: TextAlign.center,
             ),
           );
@@ -2043,7 +2112,10 @@ class MateriPage extends StatefulWidget {
 }
 
 class _MateriPageState extends State<MateriPage> {
-  late final Future<_MateriPageData> _futureMateri = _muatMateri();
+  late final Future<_MateriPageData> _futureMateri = _withDatabaseErrorLogging(
+    'Gagal memuat materi',
+    _muatMateri,
+  );
   final Set<int> _baruDitandaiSelesai = {};
 
   Future<_MateriPageData> _muatMateri() async {
@@ -2067,10 +2139,11 @@ class _MateriPageState extends State<MateriPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Materi ditandai selesai.')));
-    } catch (e) {
+    } catch (error, stackTrace) {
+      _logDatabaseError('Gagal menyimpan progres materi', error, stackTrace);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal menyimpan progres materi: $e')),
+        const SnackBar(content: Text('Gagal menyimpan progres materi.')),
       );
     }
   }
@@ -2089,7 +2162,7 @@ class _MateriPageState extends State<MateriPage> {
           if (snapshot.hasError) {
             return Center(
               child: Text(
-                'Gagal memuat materi:\n${snapshot.error}',
+                'Materi tidak dapat dimuat. Coba buka kembali halaman ini.',
                 textAlign: TextAlign.center,
               ),
             );
@@ -2250,12 +2323,14 @@ class _FlashcardPageState extends State<FlashcardPage> {
         cards = result;
         loading = false;
       });
-    } catch (e) {
+    } catch (error, stackTrace) {
+      _logDatabaseError('Gagal memuat flashcard', error, stackTrace);
       if (!mounted) return;
 
       setState(() {
         loading = false;
-        errorMessage = 'Gagal memuat flashcard: $e';
+        errorMessage =
+            'Flashcard tidak dapat dimuat. Coba buka kembali halaman ini.';
       });
     }
   }
@@ -2272,11 +2347,13 @@ class _FlashcardPageState extends State<FlashcardPage> {
         flashcardId: flashcardId,
         status: status,
       );
-    } catch (e) {
+    } catch (error, stackTrace) {
+      _logDatabaseError('Gagal menyimpan status flashcard', error, stackTrace);
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Gagal menyimpan status: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Gagal menyimpan status flashcard.')),
+      );
       return;
     }
 
@@ -2534,12 +2611,14 @@ class _LatihanPageState extends State<LatihanPage> {
         latihan = result;
         loading = false;
       });
-    } catch (e) {
+    } catch (error, stackTrace) {
+      _logDatabaseError('Gagal memuat latihan', error, stackTrace);
       if (!mounted) return;
 
       setState(() {
         loading = false;
-        errorMessage = 'Gagal memuat latihan: $e';
+        errorMessage =
+            'Latihan tidak dapat dimuat. Coba buka kembali halaman ini.';
       });
     }
   }
@@ -2581,11 +2660,12 @@ class _LatihanPageState extends State<LatihanPage> {
         benar: benar,
         keterangan: pesan,
       );
-    } catch (e) {
+    } catch (error, stackTrace) {
+      _logDatabaseError('Gagal menyimpan hasil latihan', error, stackTrace);
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal menyimpan hasil latihan: $e')),
+        const SnackBar(content: Text('Gagal menyimpan hasil latihan.')),
       );
 
       return;
@@ -2774,7 +2854,8 @@ class _ProfilePageState extends State<ProfilePage> {
         namaSaatIni = nama;
         namaController.text = nama;
       });
-    } catch (e) {
+    } catch (error, stackTrace) {
+      _logDatabaseError('Gagal memuat profil', error, stackTrace);
       if (!mounted) return;
 
       setState(() {
@@ -2783,8 +2864,9 @@ class _ProfilePageState extends State<ProfilePage> {
         namaSaatIni = '';
       });
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Gagal memuat profil: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profil tidak dapat dimuat.')),
+      );
     }
   }
 
@@ -2812,11 +2894,12 @@ class _ProfilePageState extends State<ProfilePage> {
       });
 
       Navigator.pop(context, namaTersimpan);
-    } catch (e) {
+    } catch (error, stackTrace) {
+      _logDatabaseError('Gagal menyimpan profil', error, stackTrace);
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+        const SnackBar(content: Text('Profil tidak dapat disimpan.')),
       );
     } finally {
       if (mounted) {
@@ -2955,8 +3038,8 @@ class _ProgressPageState extends State<ProgressPage> {
     super.initState();
 
     // Pertama kali halaman dibuka
-    _futureStatistik = ambilStatistik();
-    _futureHistory = ambilRiwayat();
+    _futureStatistik = _ambilStatistikDenganLog();
+    _futureHistory = _ambilRiwayatDenganLog();
     progressDataVersion.addListener(_onProgressChanged);
   }
 
@@ -2969,6 +3052,15 @@ class _ProgressPageState extends State<ProgressPage> {
   void _onProgressChanged() {
     refreshData(showMessage: false);
   }
+
+  Future<Map<String, Object?>> _ambilStatistikDenganLog() =>
+      _withDatabaseErrorLogging(
+        'Gagal memuat statistik progres',
+        ambilStatistik,
+      );
+
+  Future<List<Map<String, Object?>>> _ambilRiwayatDenganLog() =>
+      _withDatabaseErrorLogging('Gagal memuat riwayat progres', ambilRiwayat);
 
   // ============================================================
   // AMBIL STATISTIK DARI DATABASE
@@ -3132,8 +3224,8 @@ class _ProgressPageState extends State<ProgressPage> {
 
   Future<void> refreshData({bool showMessage = true}) async {
     // Baca ulang data dari database
-    final statistikBaru = ambilStatistik();
-    final historyBaru = ambilRiwayat();
+    final statistikBaru = _ambilStatistikDenganLog();
+    final historyBaru = _ambilRiwayatDenganLog();
 
     // Masukkan Future baru ke halaman
     setState(() {
@@ -3145,11 +3237,12 @@ class _ProgressPageState extends State<ProgressPage> {
     try {
       await _futureStatistik;
       await _futureHistory;
-    } catch (e) {
+    } catch (error, stackTrace) {
+      _logDatabaseError('Gagal memperbarui progress', error, stackTrace);
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Gagal memperbarui Progress: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Gagal memperbarui progress.')),
+      );
       return;
     }
 
@@ -3216,8 +3309,7 @@ class _ProgressPageState extends State<ProgressPage> {
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Text(
-                  'Gagal memuat statistik:\n'
-                  '${snapshot.error}',
+                  'Statistik tidak dapat dimuat. Coba buka kembali halaman ini.',
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -3442,9 +3534,7 @@ class _ProgressPageState extends State<ProgressPage> {
 
                     if (snapshot.hasError) {
                       return _MessageCard(
-                        message:
-                            'Gagal memuat riwayat: '
-                            '${snapshot.error}',
+                        message: 'Riwayat tidak dapat dimuat. Coba buka kembali halaman ini.',
                       );
                     }
 

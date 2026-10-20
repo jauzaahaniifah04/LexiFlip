@@ -18,16 +18,15 @@ void main() {
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
-      MaterialApp(
-        home: StartupErrorPage(
-          settings: AppSettingsController(),
-          error: StateError('Database tidak tersedia'),
-        ),
-      ),
+      MaterialApp(home: StartupErrorPage(settings: AppSettingsController())),
     );
 
     expect(find.text('LexiFlip belum dapat dimulai.'), findsOneWidget);
-    expect(find.textContaining('Database tidak tersedia'), findsOneWidget);
+    expect(
+      find.textContaining('Periksa penyimpanan perangkat'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Database tidak tersedia'), findsNothing);
     expect(find.text('Coba lagi'), findsOneWidget);
   });
 }
