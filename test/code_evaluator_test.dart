@@ -52,6 +52,33 @@ void main() {
       expect(result.isCorrect, isFalse);
     });
 
+    test('accepts the reported if answer with changed whitespace', () {
+      const answer = 'if (nilai>=75) {\ncout<<"Lulus";\n}';
+      const ifKey = 'if (nilai >= 75) {\n  cout << "Lulus";\n}';
+      final result = evaluateCppAnswer(answer, ifKey);
+      expect(result.isCorrect, isTrue, reason: result.feedback);
+    });
+
+    test('rejects a wrong condition operator in the reported if answer', () {
+      const answer = 'if (nilai > 75) {\ncout<<"Lulus";\n}';
+      const ifKey = 'if (nilai >= 75) {\n  cout << "Lulus";\n}';
+      expect(evaluateCppAnswer(answer, ifKey).isCorrect, isFalse);
+    });
+
+    test('rejects a different output string in the reported if answer', () {
+      const answer = 'if (nilai>=75) {\ncout<<"Tidak Lulus";\n}';
+      const ifKey = 'if (nilai >= 75) {\n  cout << "Lulus";\n}';
+      expect(evaluateCppAnswer(answer, ifKey).isCorrect, isFalse);
+    });
+
+    test('rejects a missing closing brace in the reported if answer', () {
+      const answer = 'if (nilai>=75) {\ncout<<"Lulus";\n';
+      const ifKey = 'if (nilai >= 75) {\n  cout << "Lulus";\n}';
+      final result = evaluateCppAnswer(answer, ifKey);
+      expect(result.isCorrect, isFalse);
+      expect(result.feedback, contains('Kurung belum lengkap'));
+    });
+
     test('ignores comments but preserves code tokens', () {
       final result = evaluateCppAnswer(
         'for (int i = 0; i < 5; i++) { // loop\n cout << i; }',

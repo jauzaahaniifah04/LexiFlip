@@ -48,6 +48,11 @@ String normalisasiKode(String source) {
   return tokens?.join('\u0000') ?? '';
 }
 
+String describeCppTokens(String source) {
+  final tokens = _tokenizeCpp(source);
+  return tokens == null ? '<invalid literal or comment>' : tokens.join(' | ');
+}
+
 List<String>? _tokenizeCpp(String source) {
   final tokens = <String>[];
   var index = 0;

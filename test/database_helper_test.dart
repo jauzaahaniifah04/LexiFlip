@@ -6,6 +6,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'package:flutter_application_1/database/database_platform.dart';
+import 'package:flutter_application_1/code_evaluator.dart';
 import 'package:flutter_application_1/main.dart';
 
 void main() {
@@ -123,4 +124,38 @@ void main() {
       }
     },
   );
+
+  test('active seeded if exercise accepts its whitespace variant', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'lexiflip-active-exercise-',
+    );
+    final helper = DatabaseHelper.forTesting(
+      p.join(directory.path, 'lexiflip.db'),
+    );
+
+    try {
+      await helper.initDatabase();
+      final activeExercises = await helper.database.query(
+        'latihan_kode',
+        where: 'bab_id = ?',
+        whereArgs: [3],
+        orderBy: 'id ASC',
+      );
+      expect(activeExercises, isNotEmpty);
+
+      final activeExercise = activeExercises.first;
+      expect(
+        activeExercise['instruksi'],
+        'Buat IF yang menampilkan Lulus jika nilai >= 75.',
+      );
+      final result = evaluateCppAnswer(
+        'if (nilai>=75) {\ncout<<"Lulus";\n}',
+        activeExercise['kunci']! as String,
+      );
+      expect(result.isCorrect, isTrue, reason: result.feedback);
+      await helper.database.close();
+    } finally {
+      await directory.delete(recursive: true);
+    }
+  });
 }

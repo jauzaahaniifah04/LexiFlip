@@ -2584,6 +2584,7 @@ class _LatihanPageState extends State<LatihanPage> {
 
   String? errorMessage;
   String hasil = '';
+  bool savingResult = false;
 
   final TextEditingController codeController = TextEditingController();
 
@@ -2605,6 +2606,7 @@ class _LatihanPageState extends State<LatihanPage> {
         'latihan_kode',
         where: 'bab_id = ?',
         whereArgs: [widget.bab['id']],
+        orderBy: 'id ASC',
       );
 
       if (!mounted) return;
@@ -2626,9 +2628,12 @@ class _LatihanPageState extends State<LatihanPage> {
   }
 
   Future<void> runCode() async {
-    if (latihan.isEmpty) return;
+    if (latihan.isEmpty || savingResult) return;
 
-    final soal = latihan[index];
+    final activeIndex = index;
+    final soal = latihan[activeIndex];
+    final latihanId = soal['id'] as int;
+    final kunci = soal['kunci']?.toString() ?? '';
 
     final kode = codeController.text;
     if (kode.trim().isEmpty) {
@@ -2638,18 +2643,45 @@ class _LatihanPageState extends State<LatihanPage> {
       return;
     }
 
-    final evaluation = evaluateCppAnswer(kode, '${soal['kunci']}');
+    final evaluation = evaluateCppAnswer(kode, kunci);
     final benar = evaluation.isCorrect;
+    final alasan = evaluation.feedback;
 
     final pesan = benar
-        ? 'BENAR\n\n${evaluation.feedback}\n\n'
+        ? 'BENAR\n\n$alasan\n\n'
               'Hasil panduan: ${soal['output']}\n\n'
               'Kode diperiksa berdasarkan kunci latihan, bukan dijalankan.'
-        : 'BELUM BENAR\n\nPetunjuk: ${evaluation.feedback}';
+        : 'BELUM BENAR\n\nPetunjuk: $alasan';
+
+    assert(() {
+      debugPrint(
+        '[LatihanCode] soal=${soal['id']} index=${activeIndex + 1}/${latihan.length} '
+        'instruksi=${soal['instruksi']}',
+      );
+      debugPrint('[LatihanCode] input=<<<$kode>>>');
+      debugPrint('[LatihanCode] kunci=<<<$kunci>>>');
+      debugPrint(
+        '[LatihanCode] tokenInput=${describeCppTokens(kode)} '
+        'normalisasiInput=${normalisasiKode(kode)}',
+      );
+      debugPrint(
+        '[LatihanCode] tokenKunci=${describeCppTokens(kunci)} '
+        'normalisasiKunci=${normalisasiKode(kunci)}',
+      );
+      debugPrint(
+        '[LatihanCode] hasil=${benar ? 'DITERIMA' : 'DITOLAK'} alasan=$alasan',
+      );
+      return true;
+    }());
+
+    setState(() {
+      hasil = pesan;
+      savingResult = true;
+    });
 
     try {
       await DatabaseHelper.instance.simpanHasilLatihan(
-        latihanId: soal['id'] as int,
+        latihanId: latihanId,
         kode: kode,
         benar: benar,
         keterangan: pesan,
@@ -2663,13 +2695,9 @@ class _LatihanPageState extends State<LatihanPage> {
       );
 
       return;
+    } finally {
+      if (mounted) setState(() => savingResult = false);
     }
-
-    if (!mounted) return;
-
-    setState(() {
-      hasil = pesan;
-    });
   }
 
   void resetEditor() {
@@ -2753,7 +2781,7 @@ class _LatihanPageState extends State<LatihanPage> {
                 child: SizedBox(
                   height: 52,
                   child: FilledButton.icon(
-                    onPressed: runCode,
+                    onPressed: savingResult ? null : runCode,
                     icon: const Icon(Icons.play_arrow),
                     label: const Text('Run'),
                   ),
@@ -2761,7 +2789,7 @@ class _LatihanPageState extends State<LatihanPage> {
               ),
               const SizedBox(width: 12),
               OutlinedButton.icon(
-                onPressed: resetEditor,
+                onPressed: savingResult ? null : resetEditor,
                 icon: const Icon(Icons.restart_alt),
                 label: const Text('Reset'),
                 style: OutlinedButton.styleFrom(minimumSize: const Size(0, 52)),
@@ -2794,7 +2822,7 @@ class _LatihanPageState extends State<LatihanPage> {
           if (index < latihan.length - 1) ...[
             const SizedBox(height: 15),
             OutlinedButton(
-              onPressed: latihanBerikutnya,
+              onPressed: savingResult ? null : latihanBerikutnya,
               child: const Text('Latihan Berikutnya'),
             ),
           ],
