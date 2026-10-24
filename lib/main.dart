@@ -2118,6 +2118,7 @@ class _MateriPageState extends State<MateriPage> {
     'Gagal memuat materi',
     _muatMateri,
   );
+  final TextEditingController _searchController = TextEditingController();
   final Set<int> _baruDitandaiSelesai = {};
 
   Future<_MateriPageData> _muatMateri() async {
@@ -2133,21 +2134,29 @@ class _MateriPageState extends State<MateriPage> {
     return _MateriPageData(materi: data, selesaiIds: selesaiIds);
   }
 
-  Future<void> _tandaiSelesai(int materiId) async {
+  Future<bool> _tandaiSelesai(int materiId) async {
     try {
       await DatabaseHelper.instance.tandaiMateriSelesai(materiId: materiId);
-      if (!mounted) return;
+      if (!mounted) return false;
       setState(() => _baruDitandaiSelesai.add(materiId));
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Materi ditandai selesai.')));
+      return true;
     } catch (error, stackTrace) {
       _logDatabaseError('Gagal menyimpan progres materi', error, stackTrace);
-      if (!mounted) return;
+      if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Gagal menyimpan progres materi.')),
       );
+      return false;
     }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   @override
@@ -2175,66 +2184,94 @@ class _MateriPageState extends State<MateriPage> {
             ...?snapshot.data?.selesaiIds,
             ..._baruDitandaiSelesai,
           };
-
-          if (data.isEmpty) {
-            return const Center(child: Text('Belum ada materi pada bab ini.'));
-          }
+          final query = _searchController.text.trim().toLowerCase();
+          final materiTampil = query.isEmpty
+              ? data
+              : data.where((materi) {
+                  final judul = '${materi['judul']}'.toLowerCase();
+                  final isi = '${materi['isi']}'.toLowerCase();
+                  return judul.contains(query) || isi.contains(query);
+                }).toList();
 
           return ListView(
             padding: const EdgeInsets.all(18),
-            children: data.map((materi) {
-              return Card(
-                margin: const EdgeInsets.only(bottom: 15),
-                child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${materi['judul']}',
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
+            children: [
+              TextField(
+                controller: _searchController,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  hintText: 'Cari materi C++...',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: query.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: 'Hapus pencarian',
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() {});
+                          },
+                          icon: const Icon(Icons.close),
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        '${materi['isi']}',
-                        style: const TextStyle(fontSize: 16),
-                      ),
-                      const SizedBox(height: 15),
-                      const Text(
-                        'Contoh Kode:',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 8),
-                      CodeBox(text: '${materi['contoh']}'),
-                      const SizedBox(height: 12),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: FilledButton.icon(
-                          onPressed:
-                              materi['id'] is int &&
-                                  !selesaiIds.contains(materi['id'])
-                              ? () => _tandaiSelesai(materi['id'] as int)
-                              : null,
-                          icon: Icon(
-                            selesaiIds.contains(materi['id'])
-                                ? Icons.check_circle
-                                : Icons.check,
-                          ),
-                          label: Text(
-                            selesaiIds.contains(materi['id'])
-                                ? 'Selesai'
-                                : 'Tandai selesai',
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                  border: const OutlineInputBorder(),
                 ),
-              );
-            }).toList(),
+              ),
+              const SizedBox(height: 16),
+              if (materiTampil.isEmpty)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Text(
+                      query.isEmpty
+                          ? 'Belum ada materi pada bab ini.'
+                          : 'Materi tidak ditemukan',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                )
+              else if (query.isNotEmpty)
+                ...materiTampil.map((materi) {
+                  final id = materi['id'];
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    child: ListTile(
+                      title: Text('${materi['judul']}'),
+                      subtitle: Text(
+                        '${materi['isi']}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: id is int
+                          ? () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute<void>(
+                                  builder: (_) => MateriDetailPage(
+                                    materi: materi,
+                                    isCompleted: selesaiIds.contains(id),
+                                    onMarkComplete: _tandaiSelesai,
+                                  ),
+                                ),
+                              );
+                            }
+                          : null,
+                    ),
+                  );
+                })
+              else
+                ...materiTampil.map((materi) {
+                  final id = materi['id'];
+                  return _MateriContentCard(
+                    materi: materi,
+                    isCompleted: selesaiIds.contains(id),
+                    onMarkComplete: id is int && !selesaiIds.contains(id)
+                        ? () async {
+                            await _tandaiSelesai(id);
+                          }
+                        : null,
+                  );
+                }),
+            ],
           );
         },
       ),
@@ -2247,6 +2284,102 @@ class _MateriPageData {
   final Set<int> selesaiIds;
 
   const _MateriPageData({required this.materi, required this.selesaiIds});
+}
+
+class MateriDetailPage extends StatefulWidget {
+  final Map<String, Object?> materi;
+  final bool isCompleted;
+  final Future<bool> Function(int materiId) onMarkComplete;
+
+  const MateriDetailPage({
+    super.key,
+    required this.materi,
+    required this.isCompleted,
+    required this.onMarkComplete,
+  });
+
+  @override
+  State<MateriDetailPage> createState() => _MateriDetailPageState();
+}
+
+class _MateriDetailPageState extends State<MateriDetailPage> {
+  late bool _isCompleted = widget.isCompleted;
+
+  Future<void> _tandaiSelesai() async {
+    final id = widget.materi['id'];
+    if (id is! int) return;
+
+    final berhasil = await widget.onMarkComplete(id);
+    if (mounted && berhasil) {
+      setState(() => _isCompleted = true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('${widget.materi['judul']}')),
+      body: ListView(
+        padding: const EdgeInsets.all(18),
+        children: [
+          _MateriContentCard(
+            materi: widget.materi,
+            isCompleted: _isCompleted,
+            onMarkComplete: _isCompleted ? null : _tandaiSelesai,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MateriContentCard extends StatelessWidget {
+  final Map<String, Object?> materi;
+  final bool isCompleted;
+  final VoidCallback? onMarkComplete;
+
+  const _MateriContentCard({
+    required this.materi,
+    required this.isCompleted,
+    required this.onMarkComplete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 15),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${materi['judul']}',
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Text('${materi['isi']}', style: const TextStyle(fontSize: 16)),
+            const SizedBox(height: 15),
+            const Text(
+              'Contoh Kode:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            CodeBox(text: '${materi['contoh']}'),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton.icon(
+                onPressed: onMarkComplete,
+                icon: Icon(isCompleted ? Icons.check_circle : Icons.check),
+                label: Text(isCompleted ? 'Selesai' : 'Tandai selesai'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 // ============================================================
