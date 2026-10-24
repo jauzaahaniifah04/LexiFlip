@@ -9,6 +9,7 @@ import 'package:sqflite/sqflite.dart';
 import 'code_auto_indent_formatter.dart';
 import 'code_evaluator.dart';
 import 'database/database_platform.dart';
+import 'screens/about_page.dart';
 
 final ValueNotifier<int> progressDataVersion = ValueNotifier<int>(0);
 
@@ -16,25 +17,23 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   final appSettings = AppSettingsController();
-  Object? initializationError;
+  final startup = _initializeApp(appSettings);
+
+  runApp(LexiFlipApp(settings: appSettings, startup: startup));
+}
+
+Future<void> _initializeApp(AppSettingsController settings) async {
   try {
     await DatabaseHelper.instance.initDatabase();
-    await appSettings.load();
+    await settings.load();
   } catch (error, stackTrace) {
     _logDatabaseError(
       'Gagal menginisialisasi database atau preferensi',
       error,
       stackTrace,
     );
-    initializationError = error;
+    rethrow;
   }
-
-  runApp(
-    LexiFlipApp(
-      settings: appSettings,
-      initializationError: initializationError,
-    ),
-  );
 }
 
 void _logDatabaseError(String operation, Object error, StackTrace stackTrace) {
@@ -953,13 +952,9 @@ class AppSettingsController extends ChangeNotifier {
 
 class LexiFlipApp extends StatelessWidget {
   final AppSettingsController settings;
-  final Object? initializationError;
+  final Future<void> startup;
 
-  const LexiFlipApp({
-    super.key,
-    required this.settings,
-    this.initializationError,
-  });
+  const LexiFlipApp({super.key, required this.settings, required this.startup});
 
   ThemeData _buildTheme(Brightness brightness) {
     final colorScheme = ColorScheme.fromSeed(
@@ -1000,9 +995,33 @@ class LexiFlipApp extends StatelessWidget {
               .copyWith(textScaler: TextScaler.linear(settings.textScale)),
           child: child!,
         ),
-        home: initializationError == null
-            ? StartPage(settings: settings)
-            : StartupErrorPage(settings: settings),
+        home: FutureBuilder<void>(
+          future: startup,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Scaffold(
+                body: SafeArea(
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 16),
+                        Text('LexiFlip sedang disiapkan...'),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }
+
+            if (snapshot.hasError) {
+              return StartupErrorPage(settings: settings);
+            }
+
+            return StartPage(settings: settings);
+          },
+        ),
       ),
     );
   }
@@ -1195,6 +1214,21 @@ class SettingsPage extends StatelessWidget {
                     ),
                   ],
                 ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.info_outline),
+                title: const Text('Tentang Aplikasi'),
+                subtitle: const Text('Informasi mengenai LexiFlip'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.push<void>(
+                    context,
+                    MaterialPageRoute<void>(builder: (_) => const AboutPage()),
+                  );
+                },
               ),
             ),
           ],
