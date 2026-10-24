@@ -2161,119 +2161,129 @@ class _MateriPageState extends State<MateriPage> {
 
   @override
   Widget build(BuildContext context) {
+    final query = _searchController.text.trim().toLowerCase();
+
     return Scaffold(
       appBar: AppBar(title: Text('${widget.bab['judul']}')),
-      body: FutureBuilder<_MateriPageData>(
-        future: _futureMateri,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState != ConnectionState.done) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (snapshot.hasError) {
-            return Center(
-              child: Text(
-                'Materi tidak dapat dimuat. Coba buka kembali halaman ini.',
-                textAlign: TextAlign.center,
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 0),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                hintText: 'Cari materi C++...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: query.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: 'Hapus pencarian',
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() {});
+                        },
+                        icon: const Icon(Icons.close),
+                      ),
+                border: const OutlineInputBorder(),
               ),
-            );
-          }
+            ),
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: FutureBuilder<_MateriPageData>(
+              future: _futureMateri,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState != ConnectionState.done) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-          final data = snapshot.data?.materi ?? [];
-          final selesaiIds = <int>{
-            ...?snapshot.data?.selesaiIds,
-            ..._baruDitandaiSelesai,
-          };
-          final query = _searchController.text.trim().toLowerCase();
-          final materiTampil = query.isEmpty
-              ? data
-              : data.where((materi) {
-                  final judul = '${materi['judul']}'.toLowerCase();
-                  final isi = '${materi['isi']}'.toLowerCase();
-                  return judul.contains(query) || isi.contains(query);
-                }).toList();
-
-          return ListView(
-            padding: const EdgeInsets.all(18),
-            children: [
-              TextField(
-                controller: _searchController,
-                onChanged: (_) => setState(() {}),
-                decoration: InputDecoration(
-                  hintText: 'Cari materi C++...',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: query.isEmpty
-                      ? null
-                      : IconButton(
-                          tooltip: 'Hapus pencarian',
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() {});
-                          },
-                          icon: const Icon(Icons.close),
-                        ),
-                  border: const OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              if (materiTampil.isEmpty)
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
+                if (snapshot.hasError) {
+                  return const Center(
                     child: Text(
-                      query.isEmpty
-                          ? 'Belum ada materi pada bab ini.'
-                          : 'Materi tidak ditemukan',
+                      'Materi tidak dapat dimuat. Coba buka kembali halaman ini.',
                       textAlign: TextAlign.center,
                     ),
-                  ),
-                )
-              else if (query.isNotEmpty)
-                ...materiTampil.map((materi) {
-                  final id = materi['id'];
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    child: ListTile(
-                      title: Text('${materi['judul']}'),
-                      subtitle: Text(
-                        '${materi['isi']}',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: id is int
-                          ? () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute<void>(
-                                  builder: (_) => MateriDetailPage(
-                                    materi: materi,
-                                    isCompleted: selesaiIds.contains(id),
-                                    onMarkComplete: _tandaiSelesai,
-                                  ),
-                                ),
-                              );
-                            }
-                          : null,
-                    ),
                   );
-                })
-              else
-                ...materiTampil.map((materi) {
-                  final id = materi['id'];
-                  return _MateriContentCard(
-                    materi: materi,
-                    isCompleted: selesaiIds.contains(id),
-                    onMarkComplete: id is int && !selesaiIds.contains(id)
-                        ? () async {
-                            await _tandaiSelesai(id);
-                          }
-                        : null,
-                  );
-                }),
-            ],
-          );
-        },
+                }
+
+                final data = snapshot.data?.materi ?? [];
+                final selesaiIds = <int>{
+                  ...?snapshot.data?.selesaiIds,
+                  ..._baruDitandaiSelesai,
+                };
+                final materiTampil = query.isEmpty
+                    ? data
+                    : data.where((materi) {
+                        final judul = '${materi['judul']}'.toLowerCase();
+                        final isi = '${materi['isi']}'.toLowerCase();
+                        return judul.contains(query) || isi.contains(query);
+                      }).toList();
+
+                return ListView(
+                  padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
+                  children: [
+                    if (materiTampil.isEmpty)
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Text(
+                            query.isEmpty
+                                ? 'Belum ada materi pada bab ini.'
+                                : 'Materi tidak ditemukan',
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      )
+                    else if (query.isNotEmpty)
+                      ...materiTampil.map((materi) {
+                        final id = materi['id'];
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          child: ListTile(
+                            title: Text('${materi['judul']}'),
+                            subtitle: Text(
+                              '${materi['isi']}',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: id is int
+                                ? () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute<void>(
+                                        builder: (_) => MateriDetailPage(
+                                          materi: materi,
+                                          isCompleted: selesaiIds.contains(id),
+                                          onMarkComplete: _tandaiSelesai,
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                : null,
+                          ),
+                        );
+                      })
+                    else
+                      ...materiTampil.map((materi) {
+                        final id = materi['id'];
+                        return _MateriContentCard(
+                          materi: materi,
+                          isCompleted: selesaiIds.contains(id),
+                          onMarkComplete: id is int && !selesaiIds.contains(id)
+                              ? () async {
+                                  await _tandaiSelesai(id);
+                                }
+                              : null,
+                        );
+                      }),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
